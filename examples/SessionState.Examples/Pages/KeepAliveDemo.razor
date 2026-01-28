@@ -1,0 +1,132 @@
+﻿@* SessionState.Examples/Components/Pages/KeepAliveDemo.razor *@
+@page "/keep-alive"
+
+<PageTitle>Keep-Alive Demo - SessionState</PageTitle>
+
+<h1>Keep-Alive Demo</h1>
+<p class="lead">Demonstrates the activity-based keep-alive system that prevents session timeout.</p>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>How Keep-Alive Works</h5>
+            </div>
+            <div class="card-body">
+                <ol>
+                    <li>
+                        <strong>Activity Detection:</strong> The client-side JavaScript monitors user activity
+                        (clicks, keystrokes, scrolling, mouse movement, touch).
+                    </li>
+                    <li>
+                        <strong>Periodic Check:</strong> Every check interval (default: 1 minute), the system
+                        checks if any activity occurred.
+                    </li>
+                    <li>
+                        <strong>Conditional Ping:</strong> Only if activity was detected, a request is sent
+                        to the keep-alive endpoint.
+                    </li>
+                    <li>
+                        <strong>Session Refresh:</strong> The endpoint refreshes all session state entries
+                        for the current session, extending their sliding expiration.
+                    </li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5>Configuration</h5>
+            </div>
+            <div class="card-body">
+                <pre class="bg-light p-3 rounded"><code>builder.Services.AddSessionState()
+    .WithInMemoryBackend()
+    .WithKeepAlive(options =>
+    {
+        // Endpoint path
+        options.Endpoint = "/api/blazor-session-state/keep-alive";
+
+        // Check interval
+        options.CheckInterval = TimeSpan.FromMinutes(1);
+
+        // Require auth for endpoint
+        options.RequireAuthentication = false;
+
+        // Rate limit per interval
+        options.RateLimitPermitLimit = 10;
+    });</code></pre>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Activity Monitor</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <strong>Status:</strong> Keep-alive is <span class="badge bg-success">Active</span>
+                </div>
+
+                <p>Try the following to trigger activity detection:</p>
+                <ul>
+                    <li>Click anywhere on the page</li>
+                    <li>Press any key</li>
+                    <li>Scroll the page</li>
+                    <li>Move your mouse</li>
+                </ul>
+
+                <p class="small text-muted">
+                    Check the browser's Network tab (F12) to see keep-alive requests being sent
+                    to <code>/api/blazor-session-state/keep-alive</code> when you're active.
+                </p>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5>Rate Limiting</h5>
+            </div>
+            <div class="card-body">
+                <p>
+                    The keep-alive endpoint is protected by rate limiting to prevent abuse:
+                </p>
+                <ul>
+                    <li>Partitioned by session key (cookie or claim)</li>
+                    <li>Falls back to IP address if no session</li>
+                    <li>Default: 10 requests per check interval</li>
+                    <li>Returns 429 if limit exceeded</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5>Required Setup</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h6>1. Program.cs</h6>
+                <pre class="bg-light p-3 rounded"><code>// Add rate limiter middleware
+app.UseRateLimiter();
+
+// Add SessionState middleware
+app.UseSessionState();</code></pre>
+            </div>
+            <div class="col-md-6">
+                <h6>2. MainLayout.razor</h6>
+                <pre class="bg-light p-3 rounded"><code>@@using SessionState.KeepAlive
+
+&lt;SessionStateScripts /&gt;
+
+&lt;main&gt;
+    @@Body
+&lt;/main&gt;</code></pre>
+            </div>
+        </div>
+    </div>
+</div>

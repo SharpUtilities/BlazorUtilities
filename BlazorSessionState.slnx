@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/examples/">
+    <Project Path="examples/SessionState.Examples/SessionState.Examples.csproj" />
+  </Folder>
+  <Folder Name="/Items/">
+    <File Path=".github/workflows/publish-nuget.yml" />
+    <File Path="nuget.config" />
+    <File Path="README.md" />
+    <File Path="package-version.json" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/SessionState/SessionState.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+  </Folder>
+</Solution>

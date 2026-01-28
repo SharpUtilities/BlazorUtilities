@@ -1,0 +1,66 @@
+name: Publish NuGet Package
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '*.md'
+      - '.gitignore'
+      - 'LICENSE'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for counting commits
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Calculate version
+        id: version
+        run: |
+          # Read package-version.json
+          MAJOR=$(jq -r '.major' package-version.json)
+          MINOR=$(jq -r '.minor' package-version.json)
+          PATCH=$(jq -r '.patch' package-version.json)
+          PRERELEASE=$(jq -r '.prerelease' package-version.json)
+          
+          # Count commits for auto-incrementing build number
+          COMMIT_COUNT=$(git rev-list --count HEAD)
+          
+          # Build version string
+          if [ -z "$PRERELEASE" ] || [ "$PRERELEASE" == "null" ]; then
+            # Release version: 1.0.COMMIT_COUNT
+            VERSION="${MAJOR}.${MINOR}.${COMMIT_COUNT}"
+          else
+            # Prerelease version: 1.0.0-alpha.COMMIT_COUNT
+            VERSION="${MAJOR}.${MINOR}.${PATCH}-${PRERELEASE}.${COMMIT_COUNT}"
+          fi
+          
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Version: $VERSION"
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Pack
+        run: dotnet pack --configuration Release --no-build -p:PackageVersion=${{ steps.version.outputs.VERSION }} --output ./nupkg
+
+      - name: Push to GitHub Packages
+        run: dotnet nuget push ./nupkg/*.nupkg --source "https://nuget.pkg.github.com/BlazorUtilities/index.json" --api-key ${{ secrets.GITHUB_TOKEN }} --skip-duplicate
