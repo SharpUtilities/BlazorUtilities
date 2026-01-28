@@ -62,7 +62,7 @@ builder.Services.AddAuthentication("Cookies")
         // SessionState will wrap these events and delegate calls to them
         options.EventsType = typeof(DemoCookieEvents);
     })
-    .WithBlazorSessionState("Cookies"); // Integrate with SessionState
+    .WithSessionState("Cookies"); // Integrate with SessionState
 
 builder.Services.AddAuthorization();
 

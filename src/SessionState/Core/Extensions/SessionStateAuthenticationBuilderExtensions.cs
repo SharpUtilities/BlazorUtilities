@@ -19,7 +19,7 @@ public static class SessionStateAuthenticationBuilderExtensions
     /// <param name="builder">The authentication builder.</param>
     /// <param name="authenticationScheme">The cookie authentication scheme name. Defaults to "Cookies".</param>
     /// <returns>The authentication builder for chaining.</returns>
-    public static AuthenticationBuilder WithBlazorSessionState(
+    public static AuthenticationBuilder WithSessionState(
         this AuthenticationBuilder builder,
         string authenticationScheme)
     {
