@@ -1,0 +1,82 @@
+﻿@* BlazorState.Examples/Components/Pages/Home.razor *@
+@page "/"
+
+<PageTitle>BlazorState Examples</PageTitle>
+
+<h1>BlazorState Examples</h1>
+
+<p class="lead">
+    Welcome to the BlazorState examples application. This demonstrates various features and usage patterns
+    of the BlazorState library for managing cross-transport session state in Blazor Server applications.
+</p>
+
+<div class="row mt-4">
+    <div class="col-md-6 mb-3">
+        <div class="card h-100">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Basic Examples</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li><a href="basic-usage">Basic Usage</a> - Simple get/set operations</li>
+                    <li><a href="property-tracking">Property Tracking</a> - Auto-persist on property changes</li>
+                    <li><a href="expiration-demo">Expiration Demo</a> - Sliding and absolute expiration</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-3">
+        <div class="card h-100">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">Session Scenarios</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li><a href="anonymous-session">Anonymous Session</a> - Cookie-based session for guests</li>
+                    <li><a href="authenticated-session">Authenticated Session</a> - Claim-based session for users</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-3">
+        <div class="card h-100">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">Advanced Features</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li><a href="keep-alive">Keep-Alive Demo</a> - Prevent session timeout during inactivity</li>
+                    <li><a href="cross-tab-sync">Cross-Tab Sync</a> - State synchronization across browser tabs</li>
+                    <li><a href="events-demo">Events Demo</a> - Global and instance events</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-3">
+        <div class="card h-100">
+            <div class="card-header bg-warning">
+                <h5 class="mb-0">Transport Modes</h5>
+            </div>
+            <div class="card-body">
+                <p>BlazorState works seamlessly across:</p>
+                <ul>
+                    <li><strong>HTTP</strong> - Initial page loads and SSR</li>
+                    <li><strong>SignalR</strong> - Interactive Blazor Server</li>
+                    <li><strong>SSE</strong> - Server-Sent Events fallback</li>
+                    <li><strong>Long Polling</strong> - Legacy fallback</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="alert alert-info mt-4">
+    <h5>💡 Tip</h5>
+    <p class="mb-0">
+        Open this application in multiple browser tabs to see cross-tab synchronization in action.
+        Changes made in one tab will be reflected in others!
+    </p>
+</div>
