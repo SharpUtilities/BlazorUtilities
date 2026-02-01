@@ -27,4 +27,10 @@ public sealed class BlazorStateKeepAliveOptions
     /// Default: 10
     /// </summary>
     public int RateLimitPermitLimit { get; set; } = 10;
+
+    /// <summary>
+    /// Defines the behaviour when a partition key cannot be determined for rate limiting.
+    /// Default: <see cref="KeepAlive.UnknownPartitionBehavior.Reject"/>
+    /// </summary>
+    public UnknownPartitionBehavior UnknownPartitionBehavior { get; set; } = UnknownPartitionBehavior.Reject;
 }

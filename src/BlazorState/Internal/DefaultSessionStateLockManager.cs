@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using BlazorState.Core;
 
 namespace BlazorState.Internal;
@@ -12,13 +13,13 @@ internal sealed class BlazorStateLockManager : IBlazorStateLockManager, IBlazorS
     private readonly ConcurrentDictionary<string, byte> _locks = new();
     private bool _disposed;
 
-    public bool TryAcquireLock(string name, out BlazorStateLock lockHandle)
+    public bool TryAcquireLock(string name, out BlazorStateLock? lockHandle)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
         if (_disposed)
         {
-            lockHandle = BlazorStateLock.Empty;
+            lockHandle = null;
             return false;
         }
 
@@ -28,11 +29,11 @@ internal sealed class BlazorStateLockManager : IBlazorStateLockManager, IBlazorS
             return true;
         }
 
-        lockHandle = BlazorStateLock.Empty;
+        lockHandle = null;
         return false;
     }
 
-    public bool TryAcquireLock(string name, TimeSpan timeout, out BlazorStateLock lockHandle)
+    public bool TryAcquireLock(string name, TimeSpan timeout, [NotNullWhen(true)] out BlazorStateLock? lockHandle)
     {
         // Simple implementation: just try once, ignore timeout
         // Can be upgraded to proper waiting implementation later
@@ -58,7 +59,7 @@ internal sealed class BlazorStateLockManager : IBlazorStateLockManager, IBlazorS
         throw new InvalidOperationException($"Lock '{name}' is already held.");
     }
 
-    public ValueTask<BlazorStateLock> TryAcquireLockAsync(string name, TimeSpan timeout, CancellationToken cancellationToken = default)
+    public ValueTask<BlazorStateLock?> TryAcquireLockAsync(string name, TimeSpan timeout, CancellationToken cancellationToken = default)
     {
         // Simple implementation: just try once, ignore timeout
         // Can be upgraded to proper async waiting implementation later
@@ -67,7 +68,7 @@ internal sealed class BlazorStateLockManager : IBlazorStateLockManager, IBlazorS
             return ValueTask.FromResult(handle);
         }
 
-        return ValueTask.FromResult(BlazorStateLock.Empty);
+        return ValueTask.FromResult<BlazorStateLock?>(null);
     }
 
     public bool IsLocked(string name)

@@ -17,6 +17,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Http;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace BlazorState.Internal;
@@ -122,16 +123,38 @@ internal sealed class BlazorStateBuilder : IBlazorStateBuilder
                     }
                 }
 
+                // We could have X-Forwarded-For, but we might want some extra validation/Logic, or pass a func to the caller to configure
+                // if (partitionKey is null)
+                // {
+                //     var forwardedFor = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+                //     if (!string.IsNullOrEmpty(forwardedFor))
+                //     {
+                //         // Take the first IP (client IP) from the comma-separated list
+                //         partitionKey = forwardedFor.Split(',')[0].Trim();
+                //     }
+                // }
+
                 if (partitionKey is null)
                 {
-                    return RateLimitPartition.GetSlidingWindowLimiter("__global__", _ => new SlidingWindowRateLimiterOptions
+                    var logger = context.RequestServices.GetRequiredService<ILogger<BlazorStateBuilder>>();
+                    logger.LogWarning(
+                        "Rate limiter could not determine partition key for request to {Path}",
+                        context.Request.Path);
+
+                    return keepAliveOptions.UnknownPartitionBehavior switch
                     {
-                        PermitLimit = 1,
-                        Window = keepAliveOptions.CheckInterval,
-                        SegmentsPerWindow = 1,
-                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                        QueueLimit = 0
-                    });
+                        UnknownPartitionBehavior.Allow => RateLimitPartition.GetNoLimiter("__unknown__"),
+                        UnknownPartitionBehavior.Reject => RateLimitPartition.GetFixedWindowLimiter(
+                            "__rejected__",
+                            _ => new FixedWindowRateLimiterOptions
+                            {
+                                PermitLimit = 0,
+                                Window = TimeSpan.FromSeconds(1),
+                                QueueLimit = 0
+                            }),
+                        _ => throw new InvalidOperationException(
+                            $"Unknown partition behavior: {keepAliveOptions.UnknownPartitionBehavior}")
+                    };
                 }
 
                 return RateLimitPartition.GetSlidingWindowLimiter(partitionKey, _ => new SlidingWindowRateLimiterOptions

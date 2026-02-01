@@ -3,15 +3,10 @@
 /// <summary>
 /// Represents an acquired lock. Dispose or call Release() to release the lock.
 /// </summary>
-public readonly struct BlazorStateLock : IDisposable
+public sealed class  BlazorStateLock : IDisposable
 {
     private readonly IBlazorStateLockReleaser? _releaser;
     private readonly string? _name;
-
-    /// <summary>
-    /// An empty lock that represents a failed acquisition.
-    /// </summary>
-    public static BlazorStateLock Empty => default;
 
     internal BlazorStateLock(string name, IBlazorStateLockReleaser releaser)
     {

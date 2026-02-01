@@ -12,7 +12,7 @@ public interface IBlazorStateLockManager
     /// <param name="name">The name of the lock to acquire.</param>
     /// <param name="lockHandle">The lock handle if acquired. Dispose or call Release() to release.</param>
     /// <returns>True if the lock was acquired, false if already held.</returns>
-    bool TryAcquireLock(string name, out BlazorStateLock lockHandle);
+    bool TryAcquireLock(string name, out BlazorStateLock? lockHandle);
 
     /// <summary>
     /// Attempts to acquire a named lock, waiting up to the specified timeout.
@@ -21,7 +21,7 @@ public interface IBlazorStateLockManager
     /// <param name="timeout">Maximum time to wait for the lock.</param>
     /// <param name="lockHandle">The lock handle if acquired. Dispose or call Release() to release.</param>
     /// <returns>True if the lock was acquired, false if timed out.</returns>
-    bool TryAcquireLock(string name, TimeSpan timeout, out BlazorStateLock lockHandle);
+    bool TryAcquireLock(string name, TimeSpan timeout, out BlazorStateLock? lockHandle);
 
     /// <summary>
     /// Acquires a named lock asynchronously, waiting until available or cancelled.
@@ -38,7 +38,7 @@ public interface IBlazorStateLockManager
     /// <param name="timeout">Maximum time to wait for the lock.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The lock handle. Check <see cref="BlazorStateLock.IsAcquired"/> to see if successful.</returns>
-    ValueTask<BlazorStateLock> TryAcquireLockAsync(string name, TimeSpan timeout, CancellationToken cancellationToken = default);
+    ValueTask<BlazorStateLock?> TryAcquireLockAsync(string name, TimeSpan timeout, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Checks if a named lock is currently held.
