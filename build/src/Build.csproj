@@ -5,7 +5,7 @@
     <RootNamespace>Build</RootNamespace>
     <TargetFramework>net10.0</TargetFramework>
     <NoWarn>CS0649;CS0169;CA1050;CA1822;CA2211;IDE1006</NoWarn>
-    <NukeRootDirectory>..</NukeRootDirectory>
+    <NukeRootDirectory>..\..</NukeRootDirectory>
     <NukeTelemetryVersion>1</NukeTelemetryVersion>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
