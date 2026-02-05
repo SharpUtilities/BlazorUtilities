@@ -26,21 +26,6 @@
 
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App"/>
-
-        <!-- Required for OIDC support -->
-        <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.2" Condition="'$(TargetFramework)' == 'net10.0'" />
-        <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="9.0.2" Condition="'$(TargetFramework)' == 'net9.0'" />
-        <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="8.0.12" Condition="'$(TargetFramework)' == 'net8.0'" />
-
-        <!-- Required for JWT support -->
-        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.2" Condition="'$(TargetFramework)' == 'net10.0'" />
-        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.2" Condition="'$(TargetFramework)' == 'net9.0'" />
-        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.12" Condition="'$(TargetFramework)' == 'net8.0'" />
-
-        <!-- Required for Certificate authentication -->
-        <PackageReference Include="Microsoft.AspNetCore.Authentication.Certificate" Version="10.0.2" Condition="'$(TargetFramework)' == 'net10.0'" />
-        <PackageReference Include="Microsoft.AspNetCore.Authentication.Certificate" Version="9.0.2" Condition="'$(TargetFramework)' == 'net9.0'" />
-        <PackageReference Include="Microsoft.AspNetCore.Authentication.Certificate" Version="8.0.12" Condition="'$(TargetFramework)' == 'net8.0'" />
     </ItemGroup>
 
     <ItemGroup>

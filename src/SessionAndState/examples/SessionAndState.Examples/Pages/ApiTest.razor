@@ -1,0 +1,181 @@
+﻿@page "/api-test"
+@using Microsoft.AspNetCore.Components.Authorization
+
+<PageTitle>API Test - BlazorState</PageTitle>
+
+<h1>External API Test</h1>
+<p class="lead">Tests calling an external API with JWT authentication.</p>
+
+<AuthorizeView>
+    <Authorized>
+        <div class="alert alert-success">
+            <strong>✓ Authenticated as @context.User.Identity?.Name</strong>
+            <p class="mb-0 mt-2 small">JWT tokens will be attached to API requests automatically.</p>
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <div class="alert alert-warning">
+            <strong>Not Authenticated</strong>
+            <p class="mb-0 mt-2">
+                <a href="/demo-login?user=alice" class="btn btn-sm btn-primary">Sign in as Alice</a>
+                to test authenticated API calls.
+            </p>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>API Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-secondary" @onclick="CheckHealth" disabled="@_loading">
+                        @if (_loading) { <span class="spinner-border spinner-border-sm me-2"></span> }
+                        Health Check (Anonymous)
+                    </button>
+
+                    <button class="btn btn-primary" @onclick="GetUserInfo" disabled="@_loading">
+                        @if (_loading) { <span class="spinner-border spinner-border-sm me-2"></span> }
+                        Get User Info (Authenticated)
+                    </button>
+
+                    <button class="btn btn-success" @onclick="GetProtectedData" disabled="@_loading">
+                        @if (_loading) { <span class="spinner-border spinner-border-sm me-2"></span> }
+                        Get Protected Data
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5>How It Works</h5>
+            </div>
+            <div class="card-body small">
+                <ol class="mb-0">
+                    <li>User authenticates with the Blazor app (cookie auth)</li>
+                    <li>When calling the external API, <code>JwtDelegatingHandler</code> runs</li>
+                    <li>Handler calls <code>IJwtTokenService.GenerateToken()</code></li>
+                    <li>Token service reads claims from <code>HttpContext.User</code></li>
+                    <li>JWT is attached as <code>Authorization: Bearer ...</code></li>
+                    <li>External API validates the JWT and returns data</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Response Log</h5>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="ClearLog">Clear</button>
+            </div>
+            <div class="card-body" style="max-height: 500px; overflow-y: auto;">
+                @if (_logs.Count == 0)
+                {
+                    <p class="text-muted">No API calls yet. Click a button to test.</p>
+                }
+                else
+                {
+                    @foreach (var log in _logs.AsEnumerable().Reverse())
+                    {
+                        <div class="mb-3 p-2 border rounded @(log.Success ? "border-success" : "border-danger")">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>
+                                    <span class="badge @(log.Success ? "bg-success" : "bg-danger")">
+                                        @log.StatusCode
+                                    </span>
+                                    <strong class="ms-2">@log.Endpoint</strong>
+                                </span>
+                                <small class="text-muted">@log.Time.ToString("HH:mm:ss")</small>
+                            </div>
+                            <pre class="bg-light p-2 rounded small mt-2 mb-0" style="white-space: pre-wrap; max-height: 200px; overflow-y: auto;">@log.Response</pre>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
+
+    private readonly List<ApiLog> _logs = new();
+    private bool _loading;
+
+    private async Task CheckHealth() => await CallApi("/api/data/health");
+
+    private async Task GetUserInfo() => await CallApi("/api/data/user-info");
+
+    private async Task GetProtectedData() => await CallApi("/api/data/protected-data");
+
+    private async Task CallApi(string endpoint, HttpMethod? method = null, object? body = null)
+    {
+        _loading = true;
+        StateHasChanged();
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient("Api");
+
+            HttpResponseMessage response;
+            if (method == HttpMethod.Post && body is not null)
+            {
+                response = await client.PostAsJsonAsync(endpoint, body);
+            }
+            else
+            {
+                response = await client.GetAsync(endpoint);
+            }
+
+            var content = await response.Content.ReadAsStringAsync();
+
+            try
+            {
+                var json = System.Text.Json.JsonDocument.Parse(content);
+                content = System.Text.Json.JsonSerializer.Serialize(json,
+                    new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            }
+            catch { }
+
+            _logs.Add(new ApiLog
+            {
+                Time = DateTime.Now,
+                Endpoint = endpoint,
+                StatusCode = (int)response.StatusCode,
+                Success = response.IsSuccessStatusCode,
+                Response = content
+            });
+        }
+        catch (Exception ex)
+        {
+            _logs.Add(new ApiLog
+            {
+                Time = DateTime.Now,
+                Endpoint = endpoint,
+                StatusCode = 0,
+                Success = false,
+                Response = $"Error: {ex.Message}"
+            });
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void ClearLog() => _logs.Clear();
+
+    private record ApiLog
+    {
+        public DateTime Time { get; init; }
+        public required string Endpoint { get; init; }
+        public int StatusCode { get; init; }
+        public bool Success { get; init; }
+        public required string Response { get; init; }
+    }
+}

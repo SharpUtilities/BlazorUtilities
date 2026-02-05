@@ -17,6 +17,16 @@ builder.Services.AddDataProtection().SetApplicationName("BlazorState.Examples");
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<AuthenticationStateProvider, ServerAuthenticationStateProvider>();
 
+// JWT generation needs access to the current HttpContext/User
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
+builder.Services.AddScoped<ApiDelegatingHandler>();
+
+builder.Services.AddHttpClient("Api", client =>
+{
+    client.BaseAddress = new Uri("https://localhost:7016/");
+}).AddHttpMessageHandler<ApiDelegatingHandler>();
+
 // Configure BlazorState with all features
 // Note: WithKeyGenerator must be called FIRST before other configuration
 builder.Services.AddSessionAndState<DemoKeyGenerator>()
@@ -73,16 +83,14 @@ app.UseRateLimiter();
 // This establishes the session during the initial HTTP request
 app.UseSessionAndState();
 
-
 app.UseStaticFiles();
 app.MapStaticAssets();
-
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 // Demo login endpoint (for demonstration purposes only)
-app.MapGet("/demo-login", async (string user, HttpContext context) =>
+app.MapGet("/demo-login", async (string user, HttpContext context, IJwtTokenService jwtTokenService) =>
 {
     var claims = new List<Claim>
     {
@@ -92,6 +100,16 @@ app.MapGet("/demo-login", async (string user, HttpContext context) =>
 
     var identity = new ClaimsIdentity(claims, "DemoAuth");
     var principal = new ClaimsPrincipal(identity);
+
+    // JwtTokenService reads HttpContext.User; set it for this request so it can generate the token
+    context.User = principal;
+
+    var jwt = jwtTokenService.GenerateToken();
+    if (!string.IsNullOrWhiteSpace(jwt))
+    {
+        // Store the JWT as a claim so it travels with the auth cookie
+        identity.AddClaim(new Claim("jwt", jwt));
+    }
 
     await context.SignInAsync("Cookies", principal);
 

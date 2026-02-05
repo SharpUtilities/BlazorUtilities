@@ -17,6 +17,7 @@
     <Folder Name="/src/" />
     <Folder Name="/src/SessionAndState/" />
     <Folder Name="/src/SessionAndState/examples/">
+        <Project Path="src/SessionAndState/examples/SessionAndState.Examples.Api/SessionAndState.Examples.Api.csproj" />
         <Project Path="src/SessionAndState/examples/SessionAndState.Examples/SessionAndState.Examples.csproj" />
     </Folder>
     <Folder Name="/src/SessionAndState/src/">
