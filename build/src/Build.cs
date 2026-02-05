@@ -32,33 +32,35 @@ internal sealed class Build : NukeBuild
     public static int Main() => Execute<Build>(x => x.Compile);
 
     [Parameter("Configuration to build")]
-    readonly Configuration Configuration = Configuration.Release;
+    private readonly Configuration Configuration = Configuration.Release;
 
     [Solution]
-    readonly Solution Solution = null!;
+    private readonly Solution Solution = null!;
 
     [GitRepository]
-    readonly GitRepository GitRepository = null!;
+    private readonly GitRepository GitRepository = null!;
 
     [Parameter("NuGet source URL")]
-    readonly string NugetSource = "https://nuget.pkg.github.com/SharpUtilities/index.json";
+    private readonly string NugetSource = "https://nuget.pkg.github.com/SharpUtilities/index.json";
 
     [Parameter("NuGet API key")]
     [Secret]
-    readonly string NugetApiKey = null!;
+    private readonly string NugetApiKey = null!;
 
     [Parameter("GitHub token")]
     [Secret]
-    readonly string GitHubToken = null!;
+    private readonly string GitHubToken = null!;
 
     [Parameter("If true, builds/packages but does NOT push to any feed (dry run)")]
-    readonly bool SkipPush;
+    private readonly bool SkipPush;
 
     [Parameter("If true, will NOT create git tags (useful for dry runs)")]
-    readonly bool SkipTags;
+    private readonly bool SkipTags;
+
+    [Parameter("Extra prerelease suffix for GitHub Packages builds (e.g. 'ea' => alpha.ea). Empty disables suffixing.")]
+    private readonly string GitHubPrereleaseSuffix = "ea";
 
     AbsolutePath SourceDirectory => RootDirectory / "src";
-    AbsolutePath TestsDirectory => RootDirectory / "tests";
     AbsolutePath OutputDirectory => RootDirectory / "output";
     AbsolutePath PackagesDirectory => OutputDirectory / "packages";
 
@@ -78,7 +80,6 @@ internal sealed class Build : NukeBuild
         .Executes(() =>
         {
             SourceDirectory.GlobDirectories("**/bin", "**/obj").ForEach(x => x.DeleteDirectory());
-            TestsDirectory.GlobDirectories("**/bin", "**/obj").ForEach(x => x.DeleteDirectory());
             OutputDirectory.CreateOrCleanDirectory();
         });
 
@@ -124,11 +125,28 @@ internal sealed class Build : NukeBuild
             Log.Information("✅ Validation complete - all tests passed");
         });
 
+    void AssertPublishingAllowed()
+    {
+        // Prefer GITHUB_REF when running in GitHub Actions
+        var githubRef = Environment.GetEnvironmentVariable("GITHUB_REF");
+
+        var isMain =
+            string.Equals(githubRef, "refs/heads/main", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(GitRepository.Branch, "main", StringComparison.OrdinalIgnoreCase);
+
+        if (!isMain)
+        {
+            Assert.Fail("Publishing is only allowed from 'main'.");
+        }
+    }
+
     Target PublishToGitHub => td => td
         .Description("Publish changed packages to GitHub Packages")
         .DependsOn(Test)
         .Executes(async () =>
         {
+            AssertPublishingAllowed();
+
             if (SkipPush)
             {
                 Log.Information("🧪 DRY RUN: SkipPush=true — will pack, but NOT push packages.");
@@ -149,7 +167,7 @@ internal sealed class Build : NukeBuild
             DiscoverPackableProjects();
             DetectChanges();
             PropagateDependencies();
-            PublishPackagesAsync(NugetSource, GitHubToken, skipPush: SkipPush);
+            PublishPackagesAsync(NugetSource, GitHubToken, skipPush: SkipPush, prereleaseSuffix: GitHubPrereleaseSuffix);
 
             if (SkipTags)
             {
@@ -176,6 +194,8 @@ internal sealed class Build : NukeBuild
         .DependsOn(Test)
         .Executes(() =>
         {
+            AssertPublishingAllowed();
+
             Log.Information("========================================");
             Log.Information("🚀 NUGET.ORG PUBLISH");
             Log.Information("========================================");
@@ -304,7 +324,7 @@ internal sealed class Build : NukeBuild
     // Publishing
     // ============================================
 
-    void PublishPackagesAsync(string source, string apiKey, bool skipPush)
+    void PublishPackagesAsync(string source, string apiKey, bool skipPush, string? prereleaseSuffix)
     {
         Log.Information("========================================");
         Log.Information("📦 PUBLISHING PACKAGES");
@@ -318,7 +338,11 @@ internal sealed class Build : NukeBuild
             var packageId = ProjectHelper.GetPackageId(project);
 
             // Directory is guaranteed non-null due to HasValidDirectory filter
-            var version = VersionHelper.CalculateVersion(project.Directory!, RootDirectory, GitHelper.GetCommitCount);
+            var version = VersionHelper.CalculateVersion(
+                project.Directory!,
+                RootDirectory,
+                GitHelper.GetCommitCount,
+                prereleaseSuffix);
 
             Log.Information("");
             Log.Information("📦 Packing {Project} v{Version}", project.Name, version);

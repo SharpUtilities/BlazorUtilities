@@ -1,0 +1,2 @@
+# Protect CI/CD workflow changes
+.github/workflows/ @SharpUtilities/admins

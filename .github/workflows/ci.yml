@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       publish-nuget:
-        description: 'Publish to NuGet.org'
+        description: 'Publish to NuGet.org (will run GitHub Packages publish first)'
         required: false
         type: boolean
         default: false
@@ -21,10 +21,14 @@ env:
   NUKE_TELEMETRY_OPTOUT: 1
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
 
+# Default least privilege. Jobs override if needed.
+permissions:
+  contents: read
+
 jobs:
   validate:
-    name: Validate PR
-    if: github.event_name == 'pull_request'
+    name: Validate
+    if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -44,11 +48,18 @@ jobs:
 
   publish-github:
     name: Publish to GitHub Packages
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: validate
+    if: >
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && inputs.publish-nuget && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
+
+    environment: github-packages-prod
+
     permissions:
       contents: write
       packages: write
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -64,8 +75,8 @@ jobs:
 
       - name: Configure git identity (for tags)
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Add GitHub Packages Source
         run: |
@@ -84,11 +95,16 @@ jobs:
 
   publish-nuget:
     name: Publish to NuGet.org
-    if: github.event_name == 'workflow_dispatch' && inputs.publish-nuget
+    needs: publish-github
+    if: github.event_name == 'workflow_dispatch' && inputs.publish-nuget && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+
+    environment: nuget-prod
+
     permissions:
       contents: write
       packages: write
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -102,14 +118,5 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Configure git identity (for tags)
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-
       - name: Publish to NuGet.org
         run: ./build.sh PublishToNuGet --nuget-api-key ${{ secrets.NUGET_API_KEY }}
-
-      - name: Push Tags
-        run: |
-          git push origin --tags
