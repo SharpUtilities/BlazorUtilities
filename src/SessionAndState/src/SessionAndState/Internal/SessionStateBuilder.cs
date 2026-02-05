@@ -215,6 +215,8 @@ internal sealed class SessionStateBuilder : ISessionStateBuilder
     {
         Services.AddHttpContextAccessor();
 
+        Services.Configure<SessionAndStateFeatureFlags>(f => f.KeepAliveEnabled = false);
+
         // Singletons
         Services.TryAddSingleton<SessionAndStatePipelineMarker>();
         Services.TryAddSingleton<SessionAndStateTimeProvider>();

@@ -44,6 +44,12 @@ public static class SessionAndStateApplicationBuilderExtensions
         // Wire up events
         SessionStateEventWiringHelper.WireUpEvents(app.ApplicationServices);
 
+        var featureFlags = app.ApplicationServices.GetRequiredService<IOptions<SessionAndStateFeatureFlags>>().Value;
+        if (featureFlags.KeepAliveEnabled)
+        {
+            app.UseRateLimiter();
+        }
+
         // Add middleware to ensure session key is established before response starts (for anonymous users)
         app.UseMiddleware<SessionAndStateMiddleware>();
 

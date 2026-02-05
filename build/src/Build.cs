@@ -40,7 +40,7 @@ internal sealed class Build : NukeBuild
     readonly GitRepository GitRepository = null!;
 
     [Parameter("NuGet source URL")]
-    readonly string NugetSource = "https://nuget.pkg.github.com/BlazorUtilities/index.json";
+    readonly string NugetSource = "https://nuget.pkg.github.com/SharpUtilities/index.json";
 
     [Parameter("NuGet API key")]
     [Secret]

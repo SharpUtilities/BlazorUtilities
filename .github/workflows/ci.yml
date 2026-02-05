@@ -64,7 +64,7 @@ jobs:
 
       - name: Add GitHub Packages Source
         run: |
-          dotnet nuget add source "https://nuget.pkg.github.com/BlazorUtilities/index.json" \
+          dotnet nuget add source "https://nuget.pkg.github.com/SharpUtilities/index.json" \
             --name github \
             --username ${{ github.actor }} \
             --password ${{ secrets.GITHUB_TOKEN }} \

@@ -5,7 +5,6 @@
     </Folder>
     <Folder Name="/Items/">
         <File Path=".github/workflows/ci.yml" />
-        <File Path=".github/workflows/publish-nuget.yml" />
         <File Path=".gitignore" />
         <File Path="build.ps1" />
         <File Path="build.sh" />
