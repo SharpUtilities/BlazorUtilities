@@ -1,0 +1,26 @@
+<Solution>
+    <Folder Name="/build/">
+        <Project Path="build/src/Build.csproj" />
+        <Project Path="build/tests/Build.Tests/Build.Tests.csproj" />
+    </Folder>
+    <Folder Name="/Items/">
+        <File Path=".github/workflows/ci.yml" />
+        <File Path=".github/workflows/publish-nuget.yml" />
+        <File Path=".gitignore" />
+        <File Path="build.ps1" />
+        <File Path="build.sh" />
+        <File Path="Directory.Build.targets" />
+        <File Path="nuget.config" />
+        <File Path="README.md" />
+        <File Path="package-version.json" />
+    </Folder>
+    <Folder Name="/src/" />
+    <Folder Name="/src/SessionAndState/" />
+    <Folder Name="/src/SessionAndState/examples/">
+        <Project Path="src/SessionAndState/examples/SessionAndState.Examples/SessionAndState.Examples.csproj" />
+    </Folder>
+    <Folder Name="/src/SessionAndState/src/">
+        <Project Path="src/SessionAndState/src/SessionAndState/SessionAndState.csproj" />
+    </Folder>
+    <Folder Name="/src/SessionAndState/tests/" />
+</Solution>

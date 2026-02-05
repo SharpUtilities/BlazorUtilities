@@ -1,0 +1,107 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Server;
+using Microsoft.AspNetCore.DataProtection;
+using SessionAndState.Examples;
+using SessionAndState.Examples.Services;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container.
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents();
+
+builder.Services.AddDataProtection().SetApplicationName("BlazorState.Examples");
+
+builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddScoped<AuthenticationStateProvider, ServerAuthenticationStateProvider>();
+
+// Configure BlazorState with all features
+// Note: WithKeyGenerator must be called FIRST before other configuration
+builder.Services.AddSessionAndState<DemoKeyGenerator>()
+    .WithInMemoryBackend()
+    .WithKeepAlive(options =>
+    {
+        options.CheckInterval = TimeSpan.FromSeconds(30);
+        options.RateLimitPermitLimit = 20;
+    })
+    .ConfigureOptions(options =>
+    {
+        options.CookieName = ".BlazorState.Examples";
+        options.CleanupInterval = TimeSpan.FromMinutes(1);
+    });
+
+// Register the custom cookie events in DI
+builder.Services.AddScoped<DemoCookieEvents>();
+
+// For authenticated scenarios demo
+builder.Services.AddAuthentication("Cookies")
+    .AddCookie(options =>
+    {
+        options.LoginPath = "/login";
+        options.LogoutPath = "/logout";
+
+        // Use EventsType instead of Events instance
+        // BlazorState will wrap these events and delegate calls to them
+        options.EventsType = typeof(DemoCookieEvents);
+    })
+    .WithSessionAndState("Cookies"); // Integrate with BlazorState
+
+builder.Services.AddAuthorization();
+
+var app = builder.Build();
+
+// Configure the HTTP request pipeline.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler("/Error", createScopeForErrors: true);
+    app.UseHsts();
+}
+
+app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+app.UseHttpsRedirection();
+
+app.UseAntiforgery();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.UseRateLimiter();
+
+// BlazorState middleware - MUST be before MapRazorComponents
+// This establishes the session during the initial HTTP request
+app.UseSessionAndState();
+
+
+app.UseStaticFiles();
+app.MapStaticAssets();
+
+
+app.MapRazorComponents<App>()
+    .AddInteractiveServerRenderMode();
+
+// Demo login endpoint (for demonstration purposes only)
+app.MapGet("/demo-login", async (string user, HttpContext context) =>
+{
+    var claims = new List<Claim>
+    {
+        new(ClaimTypes.NameIdentifier, user),
+        new(ClaimTypes.Name, char.ToUpperInvariant(user[0]) + user[1..])
+    };
+
+    var identity = new ClaimsIdentity(claims, "DemoAuth");
+    var principal = new ClaimsPrincipal(identity);
+
+    await context.SignInAsync("Cookies", principal);
+
+    return Results.Redirect("/authenticated-session");
+});
+
+app.MapPost("/logout", async (HttpContext context) =>
+{
+    await context.SignOutAsync("Cookies");
+    return Results.Redirect("/");
+});
+
+app.Run();

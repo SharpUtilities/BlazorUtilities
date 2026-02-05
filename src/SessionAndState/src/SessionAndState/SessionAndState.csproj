@@ -1,0 +1,54 @@
+﻿
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+    <PropertyGroup>
+        <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+        <LangVersion>latest</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+
+        <!-- NuGet Package Metadata -->
+        <PackageId>BlazorUtilities.SessionAndState</PackageId>
+        <!-- Version set by CI/CD, this is fallback for local builds -->
+        <Version>0.1.0-alpha.1</Version>
+        <Authors>Jono</Authors>
+        <Company>SharpUtilities</Company>
+        <Description>A brief description of what SessionAndState does</Description>
+        <PackageTags>blazor;session;state;aspnetcore</PackageTags>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <RepositoryUrl>https://github.com/SharpUtilities/BlazorUtilities</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+
+        <!-- Enable deterministic builds for reproducibility -->
+        <Deterministic>true</Deterministic>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+
+        <!-- Required for OIDC support -->
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.2" Condition="'$(TargetFramework)' == 'net10.0'" />
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="9.0.2" Condition="'$(TargetFramework)' == 'net9.0'" />
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="8.0.12" Condition="'$(TargetFramework)' == 'net8.0'" />
+
+        <!-- Required for JWT support -->
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.2" Condition="'$(TargetFramework)' == 'net10.0'" />
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.2" Condition="'$(TargetFramework)' == 'net9.0'" />
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.12" Condition="'$(TargetFramework)' == 'net8.0'" />
+
+        <!-- Required for Certificate authentication -->
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.Certificate" Version="10.0.2" Condition="'$(TargetFramework)' == 'net10.0'" />
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.Certificate" Version="9.0.2" Condition="'$(TargetFramework)' == 'net9.0'" />
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.Certificate" Version="8.0.12" Condition="'$(TargetFramework)' == 'net8.0'" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="../../README.md" Pack="true" PackagePath="\" Condition="Exists('../../README.md')" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="BlazorSessionState.Tests" />
+    </ItemGroup>
+
+</Project>

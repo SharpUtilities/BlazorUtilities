@@ -1,0 +1,231 @@
+﻿@* BlazorState.Examples/Components/Pages/EventsDemo.razor *@
+@page "/events-demo"
+@using SessionAndState.Examples.SessionStates
+@implements IDisposable
+
+<PageTitle>Events Demo - BlazorState</PageTitle>
+
+<h1>Events Demo</h1>
+<p class="lead">Demonstrates instance-level state change events.</p>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Trigger Events</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <h6>Counter State</h6>
+                    <div class="btn-group">
+                        <button class="btn btn-outline-primary" @onclick="SetCounter">Set</button>
+                        <button class="btn btn-outline-secondary" @onclick="ModifyCounter">Modify</button>
+                        <button class="btn btn-outline-warning" @onclick="RefreshCounter">Refresh</button>
+                        <button class="btn btn-outline-danger" @onclick="ClearCounter">Clear</button>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <h6>User Preferences</h6>
+                    <div class="btn-group">
+                        <button class="btn btn-outline-primary" @onclick="SetPreferences">Set</button>
+                        <button class="btn btn-outline-secondary" @onclick="ModifyPreferences">Modify</button>
+                        <button class="btn btn-outline-danger" @onclick="ClearPreferences">Clear</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5>Current Values</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-2">
+                    <strong>Counter:</strong>
+                    @if (Counter.HasValue)
+                    {
+                        <span class="badge bg-primary">@Counter.Value!.Count</span>
+                    }
+                    else
+                    {
+                        <span class="text-muted">(not set)</span>
+                    }
+                </div>
+                <div>
+                    <strong>Preferences:</strong>
+                    @if (Preferences.HasValue)
+                    {
+                        <span class="badge bg-secondary">@Preferences.Value!.Theme</span>
+                        <span class="badge bg-info">@Preferences.Value!.Language</span>
+                        <span class="badge bg-warning text-dark">@(Preferences.Value!.FontSize)px</span>
+                    }
+                    else
+                    {
+                        <span class="text-muted">(not set)</span>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">State Change Events</h5>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="ClearEvents">Clear</button>
+            </div>
+            <div class="card-body" style="max-height: 500px; overflow-y: auto;">
+                @if (_events.Count == 0)
+                {
+                    <p class="text-muted">No events yet. Use the buttons to trigger state changes.</p>
+                }
+                @foreach (var evt in _events.AsEnumerable().Reverse())
+                {
+                    <div class="small mb-2 p-2 border rounded">
+                        <div class="d-flex justify-content-between">
+                            <span class="badge @GetEventBadgeClass(evt.ChangeType)">@evt.ChangeType</span>
+                            <span class="text-muted">@evt.Time.ToString("HH:mm:ss.fff")</span>
+                        </div>
+                        <div class="mt-1"><strong>Type:</strong> @evt.StateType</div>
+                        @if (!string.IsNullOrEmpty(evt.PropertyName))
+                        {
+                            <div><strong>Property:</strong> @evt.PropertyName</div>
+                        }
+                        @if (!string.IsNullOrEmpty(evt.Details))
+                        {
+                            <div class="text-muted">@evt.Details</div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Inject] private SessionState<CounterState> Counter { get; set; } = default!;
+    [Inject] private SessionState<UserPreferences> Preferences { get; set; } = default!;
+
+    private readonly List<EventLog> _events = new();
+
+    protected override void OnInitialized()
+    {
+        Counter.Changed += OnCounterChanged;
+        Preferences.Changed += OnPreferencesChanged;
+    }
+
+    private void OnCounterChanged(object? sender, SessionStateChangedEventArgs<CounterState> e)
+    {
+        _events.Add(new EventLog
+        {
+            Time = DateTime.Now,
+            ChangeType = e.ChangeType,
+            StateType = nameof(CounterState),
+            PropertyName = e.PropertyName,
+            Details = GetCounterDetails(e)
+        });
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnPreferencesChanged(object? sender, SessionStateChangedEventArgs<UserPreferences> e)
+    {
+        _events.Add(new EventLog
+        {
+            Time = DateTime.Now,
+            ChangeType = e.ChangeType,
+            StateType = nameof(UserPreferences),
+            PropertyName = e.PropertyName,
+            Details = GetPreferencesDetails(e)
+        });
+        InvokeAsync(StateHasChanged);
+    }
+
+    private string? GetCounterDetails(SessionStateChangedEventArgs<CounterState> e) => e.ChangeType switch
+    {
+        SessionStateChangeType.Set => $"Value: {e.Value?.Count}, Previous: {e.PreviousValue?.Count ?? 0}",
+        SessionStateChangeType.Cleared => $"Previous: {e.PreviousValue?.Count}",
+        SessionStateChangeType.PropertyChanged => $"New value: {e.Value?.Count}",
+        SessionStateChangeType.Invalidated => "Cache invalidated, will reload on next access",
+        _ => null
+    };
+
+    private string? GetPreferencesDetails(SessionStateChangedEventArgs<UserPreferences> e) => e.ChangeType switch
+    {
+        SessionStateChangeType.Set => $"Theme: {e.Value?.Theme}, Language: {e.Value?.Language}",
+        SessionStateChangeType.Cleared => "Preferences cleared",
+        SessionStateChangeType.PropertyChanged => $"FontSize: {e.Value?.FontSize}px",
+        SessionStateChangeType.Invalidated => "Cache invalidated",
+        _ => null
+    };
+
+    private async Task SetCounter()
+    {
+        await Counter.SetAsync(new CounterState { Count = Random.Shared.Next(1, 100) });
+    }
+
+    private void ModifyCounter()
+    {
+        if (Counter.HasValue)
+        {
+            Counter.Value!.Count += 10;
+        }
+    }
+
+    private async Task RefreshCounter()
+    {
+        await Counter.RefreshAsync();
+    }
+
+    private async Task ClearCounter()
+    {
+        await Counter.ClearAsync();
+    }
+
+    private async Task SetPreferences()
+    {
+        await Preferences.SetAsync(new UserPreferences { Theme = "dark", Language = "en" });
+    }
+
+    private void ModifyPreferences()
+    {
+        if (Preferences.HasValue)
+        {
+            Preferences.Value!.FontSize = Random.Shared.Next(12, 24);
+        }
+    }
+
+    private async Task ClearPreferences()
+    {
+        await Preferences.ClearAsync();
+    }
+
+    private void ClearEvents()
+    {
+        _events.Clear();
+    }
+
+    private string GetEventBadgeClass(SessionStateChangeType changeType) => changeType switch
+    {
+        SessionStateChangeType.Set => "bg-success",
+        SessionStateChangeType.Cleared => "bg-danger",
+        SessionStateChangeType.PropertyChanged => "bg-warning text-dark",
+        SessionStateChangeType.Invalidated => "bg-info",
+        _ => "bg-secondary"
+    };
+
+    public void Dispose()
+    {
+        Counter.Changed -= OnCounterChanged;
+        Preferences.Changed -= OnPreferencesChanged;
+    }
+
+    private record EventLog
+    {
+        public DateTime Time { get; init; }
+        public required SessionStateChangeType ChangeType { get; init; }
+        public required string StateType { get; init; }
+        public string? PropertyName { get; init; }
+        public string? Details { get; init; }
+    }
+}

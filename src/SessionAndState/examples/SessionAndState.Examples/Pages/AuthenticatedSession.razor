@@ -1,0 +1,321 @@
+﻿@* BlazorState.Examples/Components/Pages/AuthenticatedSession.razor *@
+@page "/authenticated-session"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using SessionAndState.Examples.SessionStates
+@implements IDisposable
+
+<PageTitle>Authenticated Session - BlazorState</PageTitle>
+
+<h1>Authenticated Session</h1>
+<p class="lead">Demonstrates claim-based session state for authenticated users.</p>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Authentication Status</h5>
+            </div>
+            <div class="card-body">
+                <AuthorizeView>
+                    <Authorized>
+                        @{
+                            var userName = context.User.Identity?.Name ?? "Unknown";
+                            var userId = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
+                            var isBob = string.Equals(userId, "bob", StringComparison.OrdinalIgnoreCase);
+                        }
+
+                        <div class="alert @(isBob ? "alert-info" : "alert-success")">
+                            <strong>✓ Authenticated</strong>
+                            <p class="mb-0 mt-2">Welcome, @userName!</p>
+                        </div>
+
+                        @if (isBob)
+                        {
+                            <div class="alert alert-warning">
+                                <strong>🔗 Shared Session Mode</strong>
+                                <p class="mb-0 mt-2">
+                                    Bob's state is <strong>shared across all sessions</strong>.
+                                    Open another browser/incognito window, sign in as Bob, and your preferences will sync!
+                                </p>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-secondary">
+                                <strong>🔒 Isolated Session Mode</strong>
+                                <p class="mb-0 mt-2">
+                                    @userName's state is <strong>per-session</strong>.
+                                    Each browser/tab gets its own preferences.
+                                </p>
+                            </div>
+                        }
+
+                        <dl>
+                            <dt>User ID</dt>
+                            <dd><code>@userId</code></dd>
+                            <dt>Session Mode</dt>
+                            <dd>
+                                @if (isBob)
+                                {
+                                    <span class="badge bg-info">Shared (user-based key)</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">Isolated (unique key per session)</span>
+                                }
+                            </dd>
+                        </dl>
+
+                        <form method="post" action="/logout">
+                            <AntiforgeryToken />
+                            <button type="submit" class="btn btn-outline-danger">Sign Out</button>
+                        </form>
+                    </Authorized>
+                    <NotAuthorized>
+                        <div class="alert alert-warning">
+                            <strong>Not Authenticated</strong>
+                            <p class="mb-0 mt-2">Sign in to see claim-based session state in action.</p>
+                        </div>
+
+                        <div class="mt-3">
+                            <h6>Demo Sign In</h6>
+                            <p class="small text-muted">
+                                Choose a demo user to sign in. <strong>Bob</strong> has shared state across sessions,
+                                others have isolated state.
+                            </p>
+
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-outline-primary" @onclick="@(() => SignInAs("alice"))">
+                                    Sign in as Alice <span class="badge bg-secondary">Isolated</span>
+                                </button>
+                                <button class="btn btn-primary" @onclick="@(() => SignInAs("bob"))">
+                                    Sign in as Bob <span class="badge bg-info">Shared</span>
+                                </button>
+                                <button class="btn btn-outline-primary" @onclick="@(() => SignInAs("charlie"))">
+                                    Sign in as Charlie <span class="badge bg-secondary">Isolated</span>
+                                </button>
+                            </div>
+                        </div>
+                    </NotAuthorized>
+                </AuthorizeView>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5>How It Works</h5>
+            </div>
+            <div class="card-body small">
+                <p>This demo uses a custom <code>IBlazorStateKeyGenerator</code>:</p>
+
+                <pre class="bg-light p-2 rounded"><code>if (userId == "bob")
+    return $"shared:user:{userId}"; // Same key = shared state
+else
+    return Guid.NewGuid().ToString(); // Unique key = isolated</code></pre>
+
+                <h6 class="mt-3">Try This:</h6>
+                <ol class="mb-0">
+                    <li>Sign in as <strong>Bob</strong> and change preferences</li>
+                    <li>Open an incognito/private window</li>
+                    <li>Sign in as <strong>Bob</strong> again</li>
+                    <li>See that preferences are already set! 🎉</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">User Preferences</h5>
+                <AuthorizeView>
+                    <Authorized>
+                        @{
+                            var isBobPrefs = string.Equals(
+                                context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                                "bob",
+                                StringComparison.OrdinalIgnoreCase);
+                        }
+                        @if (isBobPrefs)
+                        {
+                            <span class="badge bg-info">Synced</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">Local Only</span>
+                        }
+                    </Authorized>
+                </AuthorizeView>
+            </div>
+            <div class="card-body">
+                <AuthorizeView>
+                    <Authorized>
+                        @if (Preferences.HasValue)
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">Theme</label>
+                                <div class="btn-group d-block">
+                                    <button class="btn @(Preferences.Value!.Theme == "light" ? "btn-primary" : "btn-outline-primary")"
+                                            @onclick="@(() => SetTheme("light"))">
+                                        ☀️ Light
+                                    </button>
+                                    <button class="btn @(Preferences.Value!.Theme == "dark" ? "btn-primary" : "btn-outline-primary")"
+                                            @onclick="@(() => SetTheme("dark"))">
+                                        🌙 Dark
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Language</label>
+                                <select class="form-select" value="@Preferences.Value!.Language"
+                                        @onchange="OnLanguageChanged">
+                                    <option value="en">English</option>
+                                    <option value="es">Español</option>
+                                    <option value="fr">Français</option>
+                                    <option value="de">Deutsch</option>
+                                </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Font Size: @Preferences.Value!.FontSize px</label>
+                                <input type="range" class="form-range" min="12" max="24"
+                                       value="@Preferences.Value!.FontSize"
+                                       @onchange="OnFontSizeChanged" />
+                            </div>
+
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox"
+                                           checked="@Preferences.Value!.NotificationsEnabled"
+                                           @onchange="OnNotificationsChanged" />
+                                    <label class="form-check-label">Enable Notifications</label>
+                                </div>
+                            </div>
+
+                            <button class="btn btn-outline-danger btn-sm" @onclick="ClearPreferences">
+                                Reset Preferences
+                            </button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-primary" @onclick="InitializePreferences">
+                                Initialize Preferences
+                            </button>
+                        }
+                    </Authorized>
+                    <NotAuthorized>
+                        <p class="text-muted">Sign in to manage your preferences.</p>
+                    </NotAuthorized>
+                </AuthorizeView>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5>Session Key Comparison</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm small mb-0">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Key Strategy</th>
+                            <th>Cross-Session</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Bob</strong></td>
+                            <td><code>shared:user:bob</code></td>
+                            <td><span class="badge bg-success">✓ Shared</span></td>
+                        </tr>
+                        <tr>
+                            <td>Alice</td>
+                            <td><code>guid-xxx-xxx</code></td>
+                            <td><span class="badge bg-secondary">✗ Isolated</span></td>
+                        </tr>
+                        <tr>
+                            <td>Charlie</td>
+                            <td><code>guid-yyy-yyy</code></td>
+                            <td><span class="badge bg-secondary">✗ Isolated</span></td>
+                        </tr>
+                        <tr>
+                            <td>Anonymous</td>
+                            <td><code>guid-zzz-zzz</code></td>
+                            <td><span class="badge bg-secondary">✗ Isolated</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Inject] private SessionState<UserPreferences> Preferences { get; set; } = default!;
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+
+    protected override void OnInitialized()
+    {
+        Preferences.Changed += OnPreferencesChanged;
+    }
+
+    private void OnPreferencesChanged(object? sender, SessionStateChangedEventArgs<UserPreferences> e)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void SignInAs(string username)
+    {
+        Navigation.NavigateTo($"/demo-login?user={username}", forceLoad: true);
+    }
+
+    private async Task InitializePreferences()
+    {
+        await Preferences.SetAsync(new UserPreferences());
+    }
+
+    private void SetTheme(string theme)
+    {
+        if (Preferences.Value is not null)
+        {
+            Preferences.Value.Theme = theme;
+        }
+    }
+
+    private void OnLanguageChanged(ChangeEventArgs e)
+    {
+        if (Preferences.Value is not null && e.Value is string lang)
+        {
+            Preferences.Value.Language = lang;
+        }
+    }
+
+    private void OnFontSizeChanged(ChangeEventArgs e)
+    {
+        if (Preferences.Value is not null && int.TryParse(e.Value?.ToString(), out var size))
+        {
+            Preferences.Value.FontSize = size;
+        }
+    }
+
+    private void OnNotificationsChanged(ChangeEventArgs e)
+    {
+        if (Preferences.Value is not null && e.Value is bool enabled)
+        {
+            Preferences.Value.NotificationsEnabled = enabled;
+        }
+    }
+
+    private async Task ClearPreferences()
+    {
+        await Preferences.ClearAsync();
+    }
+
+    public void Dispose()
+    {
+        Preferences.Changed -= OnPreferencesChanged;
+    }
+}
