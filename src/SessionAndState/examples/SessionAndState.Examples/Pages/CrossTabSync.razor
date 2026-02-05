@@ -1,0 +1,156 @@
+﻿@* BlazorState.Examples/Components/Pages/CrossTabSync.razor *@
+@page "/cross-tab-sync"
+@using SessionAndState.Examples.SessionStates
+@implements IDisposable
+
+<PageTitle>Cross-Tab Sync - BlazorState</PageTitle>
+
+<h1>Cross-Tab Synchronization</h1>
+<p class="lead">Open this page in multiple browser tabs to see state synchronization in action.</p>
+
+<div class="alert alert-info">
+    <strong>💡 Try this:</strong> Open this page in another browser tab, then make changes in either tab.
+    You'll see the counter update in both tabs!
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Shared Counter</h5>
+            </div>
+            <div class="card-body text-center">
+                @if (Counter.HasValue)
+                {
+                    <div class="display-1 mb-4">@Counter.Value!.Count</div>
+
+                    <div class="btn-group btn-group-lg">
+                        <button class="btn btn-danger" @onclick="Decrement">
+                            <span class="fs-4">−</span>
+                        </button>
+                        <button class="btn btn-success" @onclick="Increment">
+                            <span class="fs-4">+</span>
+                        </button>
+                    </div>
+
+                    <div class="mt-3">
+                        <button class="btn btn-outline-warning" @onclick="Reset">Reset</button>
+                    </div>
+                }
+                else
+                {
+                    <button class="btn btn-primary btn-lg" @onclick="Initialize">
+                        Start Counter
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Sync Events</h5>
+            </div>
+            <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+                @if (_events.Count == 0)
+                {
+                    <p class="text-muted">Waiting for events...</p>
+                }
+                else
+                {
+                    @foreach (var evt in _events.TakeLast(15).Reverse())
+                    {
+                        <div class="mb-2 small">
+                            <span class="badge @GetBadgeClass(evt.Type)">@evt.Type</span>
+                            <span class="text-muted">@evt.Time.ToString("HH:mm:ss.fff")</span>
+                            <div>@evt.Message</div>
+                        </div>
+                    }
+                }
+            </div>
+            <div class="card-footer">
+                <button class="btn btn-sm btn-outline-secondary" @onclick="ClearEvents">Clear</button>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5>How It Works</h5>
+            </div>
+            <div class="card-body small">
+                <ol class="mb-0">
+                    <li>Tab A updates the counter value</li>
+                    <li>Change is persisted to the backend</li>
+                    <li>Backend raises a <code>BackendOperation</code> event</li>
+                    <li>Tab B's cache receives the event (different instance ID)</li>
+                    <li>Tab B's cache invalidates itself</li>
+                    <li>Tab B raises <code>Invalidated</code> event</li>
+                    <li>UI subscribes to <code>Changed</code> and re-renders</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Inject] private SessionState<CounterState> Counter { get; set; } = default!;
+
+    private readonly List<SyncEvent> _events = new();
+
+    protected override void OnInitialized()
+    {
+        Counter.Changed += OnCounterChanged;
+    }
+
+    private void OnCounterChanged(object? sender, SessionStateChangedEventArgs<CounterState> e)
+    {
+        _events.Add(new SyncEvent
+        {
+            Time = DateTime.Now,
+            Type = e.ChangeType.ToString(),
+            Message = e.ChangeType switch
+            {
+                SessionStateChangeType.Set => $"Value set to {e.Value?.Count}",
+                SessionStateChangeType.Cleared => "Value cleared",
+                SessionStateChangeType.PropertyChanged => $"Property '{e.PropertyName}' changed",
+                SessionStateChangeType.Invalidated => "Cache invalidated (external change detected)",
+                _ => "Unknown change"
+            }
+        });
+
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task Initialize()
+    {
+        await Counter.SetAsync(new CounterState { Count = 0 });
+    }
+
+    private void Increment() => Counter.Value?.Increment();
+    private void Decrement() => Counter.Value?.Decrement();
+    private void Reset() => Counter.Value?.Reset();
+
+    private void ClearEvents() => _events.Clear();
+
+    private string GetBadgeClass(string type) => type switch
+    {
+        "Set" => "bg-success",
+        "Cleared" => "bg-danger",
+        "PropertyChanged" => "bg-info",
+        "Invalidated" => "bg-warning text-dark",
+        _ => "bg-secondary"
+    };
+
+    public void Dispose()
+    {
+        Counter.Changed -= OnCounterChanged;
+    }
+
+    private record SyncEvent
+    {
+        public DateTime Time { get; init; }
+        public required string Type { get; init; }
+        public required string Message { get; init; }
+    }
+}

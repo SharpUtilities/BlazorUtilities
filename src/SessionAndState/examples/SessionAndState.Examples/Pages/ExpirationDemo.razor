@@ -1,0 +1,259 @@
+﻿@* BlazorState.Examples/Components/Pages/ExpirationDemo.razor *@
+@page "/expiration-demo"
+@using SessionAndState.Examples.SessionStates
+@implements IDisposable
+
+<PageTitle>Expiration Demo - BlazorState</PageTitle>
+
+<h1>Expiration Demo</h1>
+<p class="lead">Demonstrates sliding and absolute expiration policies.</p>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Form Wizard State</h5>
+                <small class="text-muted">Sliding: 15 min | Absolute: 2 hours</small>
+            </div>
+            <div class="card-body">
+                @if (FormState.HasValue)
+                {
+                    <div class="mb-3">
+                        <div class="progress" style="height: 25px;">
+                            <div class="progress-bar" style="width: @(GetProgressWidth())%">
+                                Step @FormState.Value!.CurrentStep of @FormState.Value!.TotalSteps
+                            </div>
+                        </div>
+                    </div>
+
+                    @switch (FormState.Value!.CurrentStep)
+                    {
+                        case 1:
+                            <div class="mb-3">
+                                <label class="form-label">First Name</label>
+                                <input type="text" class="form-control"
+                                       value="@FormState.Value!.FirstName"
+                                       @onchange="OnFirstNameChanged" />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Last Name</label>
+                                <input type="text" class="form-control"
+                                       value="@FormState.Value!.LastName"
+                                       @onchange="OnLastNameChanged" />
+                            </div>
+                            break;
+                        case 2:
+                            <div class="mb-3">
+                                <label class="form-label">Email</label>
+                                <input type="email" class="form-control"
+                                       value="@FormState.Value!.Email"
+                                       @onchange="OnEmailChanged" />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Phone (optional)</label>
+                                <input type="tel" class="form-control"
+                                       value="@FormState.Value!.Phone"
+                                       @onchange="OnPhoneChanged" />
+                            </div>
+                            break;
+                        case 3:
+                            <div class="mb-3">
+                                <label class="form-label">Address</label>
+                                <textarea class="form-control" rows="3"
+                                          @onchange="OnAddressChanged">@FormState.Value!.Address</textarea>
+                            </div>
+                            break;
+                        case 4:
+                            <div class="mb-3">
+                                <h6>Review Your Information</h6>
+                                <dl>
+                                    <dt>Name</dt>
+                                    <dd>@FormState.Value!.FirstName @FormState.Value!.LastName</dd>
+                                    <dt>Email</dt>
+                                    <dd>@FormState.Value!.Email</dd>
+                                    <dt>Phone</dt>
+                                    <dd>@(string.IsNullOrEmpty(FormState.Value!.Phone) ? "Not provided" : FormState.Value!.Phone)</dd>
+                                    <dt>Address</dt>
+                                    <dd>@FormState.Value!.Address</dd>
+                                </dl>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox"
+                                           checked="@FormState.Value!.TermsAccepted"
+                                           @onchange="OnTermsChanged" />
+                                    <label class="form-check-label">I accept the terms and conditions</label>
+                                </div>
+                            </div>
+                            break;
+                    }
+
+                    <div class="d-flex justify-content-between">
+                        <button class="btn btn-outline-secondary"
+                                disabled="@(!FormState.Value!.CanGoPrevious)"
+                                @onclick="PreviousStep">
+                            Previous
+                        </button>
+
+                        @if (FormState.Value!.CurrentStep < FormState.Value!.TotalSteps)
+                        {
+                            <button class="btn btn-primary"
+                                    disabled="@(!FormState.Value!.CanGoNext)"
+                                    @onclick="NextStep">
+                                Next
+                            </button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-success"
+                                    disabled="@(!FormState.Value!.IsComplete)">
+                                Submit
+                            </button>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted">Form wizard state has expired or doesn't exist.</p>
+                    <button class="btn btn-primary" @onclick="StartWizard">Start Form Wizard</button>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Expiration Info</h5>
+            </div>
+            <div class="card-body">
+                <h6>Sliding Expiration</h6>
+                <p class="small">
+                    Resets the timer every time you access or modify the state.
+                    If you don't interact with the form for 15 minutes, the state expires.
+                </p>
+
+                <h6>Absolute Expiration</h6>
+                <p class="small">
+                    Maximum lifetime regardless of activity. Even if you keep interacting,
+                    the state will expire 2 hours after it was created.
+                </p>
+
+                <div class="alert alert-warning">
+                    <strong>Try this:</strong> Start the form, fill in some data, then wait
+                    (or advance time via the cleanup service) to see the state expire.
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5>Actions</h5>
+            </div>
+            <div class="card-body">
+                <button class="btn btn-outline-info mb-2 w-100" @onclick="RefreshState">
+                    Refresh (Extend Sliding)
+                </button>
+                <button class="btn btn-outline-danger w-100" @onclick="ClearState">
+                    Clear State
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Inject] private SessionState<FormWizardState> FormState { get; set; } = default!;
+
+    protected override void OnInitialized()
+    {
+        FormState.Changed += OnFormStateChanged;
+    }
+
+    private void OnFormStateChanged(object? sender, SessionStateChangedEventArgs<FormWizardState> e)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private int GetProgressWidth()
+    {
+        if (FormState.Value is null) return 0;
+        return (int)((FormState.Value.CurrentStep / (float)FormState.Value.TotalSteps) * 100);
+    }
+
+    private async Task StartWizard()
+    {
+        await FormState.SetAsync(new FormWizardState());
+    }
+
+    private async Task RefreshState()
+    {
+        await FormState.RefreshAsync();
+    }
+
+    private async Task ClearState()
+    {
+        await FormState.ClearAsync();
+    }
+
+    private void NextStep()
+    {
+        FormState.Value?.NextStep();
+    }
+
+    private void PreviousStep()
+    {
+        FormState.Value?.PreviousStep();
+    }
+
+    private void OnFirstNameChanged(ChangeEventArgs e)
+    {
+        if (FormState.Value is not null)
+        {
+            FormState.Value.FirstName = e.Value?.ToString() ?? string.Empty;
+        }
+    }
+
+    private void OnLastNameChanged(ChangeEventArgs e)
+    {
+        if (FormState.Value is not null)
+        {
+            FormState.Value.LastName = e.Value?.ToString() ?? string.Empty;
+        }
+    }
+
+    private void OnEmailChanged(ChangeEventArgs e)
+    {
+        if (FormState.Value is not null)
+        {
+            FormState.Value.Email = e.Value?.ToString() ?? string.Empty;
+        }
+    }
+
+    private void OnPhoneChanged(ChangeEventArgs e)
+    {
+        if (FormState.Value is not null)
+        {
+            FormState.Value.Phone = e.Value?.ToString() ?? string.Empty;
+        }
+    }
+
+    private void OnAddressChanged(ChangeEventArgs e)
+    {
+        if (FormState.Value is not null)
+        {
+            FormState.Value.Address = e.Value?.ToString() ?? string.Empty;
+        }
+    }
+
+    private void OnTermsChanged(ChangeEventArgs e)
+    {
+        if (FormState.Value is not null && e.Value is bool accepted)
+        {
+            FormState.Value.TermsAccepted = accepted;
+        }
+    }
+
+    public void Dispose()
+    {
+        FormState.Changed -= OnFormStateChanged;
+    }
+}

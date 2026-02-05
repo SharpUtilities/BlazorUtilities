@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '*.md'
+      - '.gitignore'
+      - 'LICENSE'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      publish-nuget:
+        description: 'Publish to NuGet.org'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  NUKE_TELEMETRY_OPTOUT: 1
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+
+jobs:
+  validate:
+    name: Validate PR
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Run Validation
+        run: ./build.sh Validate
+
+  publish-github:
+    name: Publish to GitHub Packages
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Add GitHub Packages Source
+        run: |
+          dotnet nuget add source "https://nuget.pkg.github.com/BlazorUtilities/index.json" \
+            --name github \
+            --username ${{ github.actor }} \
+            --password ${{ secrets.GITHUB_TOKEN }} \
+            --store-password-in-clear-text
+
+      - name: Publish to GitHub Packages
+        run: ./build.sh PublishToGitHub --github-token ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push Tags
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git push origin --tags
+
+  publish-nuget:
+    name: Publish to NuGet.org
+    if: github.event_name == 'workflow_dispatch' && inputs.publish-nuget
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Publish to NuGet.org
+        run: ./build.sh PublishToNuGet --nuget-api-key ${{ secrets.NUGET_API_KEY }}
+
+      - name: Push Tags
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git push origin --tags

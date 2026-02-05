@@ -1,0 +1,43 @@
+﻿@namespace SessionAndState.Core.KeepAlive
+@implements IAsyncDisposable
+@inject IJSRuntime JsRuntime
+@inject IOptions<SessionAndStateFeatureFlags> FeatureFlags
+@inject IOptions<SessionAndStateKeepAliveOptions> Options
+
+@using SessionAndState.Internal
+@using Microsoft.Extensions.Options
+@using Microsoft.JSInterop
+
+@code {
+    private IJSObjectReference? _jsModule;
+    private bool _initialized;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && FeatureFlags.Value.KeepAliveEnabled && !_initialized)
+        {
+            _jsModule = await JsRuntime.InvokeAsync<IJSObjectReference>(
+                "import", "./_content/BlazorUtilities.SessionAndState/session-and-state.js");
+
+            var options = Options.Value;
+            await _jsModule.InvokeVoidAsync("init", options.Endpoint, (int)options.CheckInterval.TotalMilliseconds);
+            _initialized = true;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_jsModule is not null)
+        {
+            try
+            {
+                await _jsModule.InvokeVoidAsync("dispose");
+                await _jsModule.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // Circuit already disconnected, ignore
+            }
+        }
+    }
+}

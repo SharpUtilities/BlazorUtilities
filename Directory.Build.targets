@@ -1,0 +1,33 @@
+<Project>
+    <PropertyGroup Condition="'$(IsPackable)' != 'false'">
+        <PackageId>BlazorUtilities.$(MSBuildProjectName)</PackageId>
+    </PropertyGroup>
+
+    <Target Name="SwapProjectRefsForPack"
+            BeforeTargets="GenerateNuspec"
+            Condition="'$(IsPackable)' != 'false'">
+
+        <ItemGroup>
+            <!-- Store ProjectReferences to swap -->
+            <_ProjectRefToSwap Include="@(ProjectReference)" />
+
+            <!-- Remove ProjectReferences -->
+            <ProjectReference Remove="@(_ProjectRefToSwap)" />
+
+            <!-- Add PackageReferences with versions passed via -p:ProjectNameVersion=X.Y.Z -->
+            <!-- Only swaps if version property is provided -->
+            <PackageReference Include="@(_ProjectRefToSwap->'%(Filename)')"
+                              Version="$(%(_ProjectRefToSwap.Filename)Version)"
+                              Condition="'$(%(_ProjectRefToSwap.Filename)Version)' != ''" />
+
+            <!-- Keep as ProjectReference if no version provided -->
+            <ProjectReference Include="@(_ProjectRefToSwap)"
+                              Condition="'$(%(_ProjectRefToSwap.Filename)Version)' == ''" />
+        </ItemGroup>
+
+        <Message Importance="High"
+                 Text="📦 Swapped '%(\_ProjectRefToSwap.Filename)' → PackageReference v$(%(_ProjectRefToSwap.Filename)Version)"
+                 Condition="'@(_ProjectRefToSwap)' != '' and '$(%(_ProjectRefToSwap.Filename)Version)' != ''" />
+
+    </Target>
+</Project>
