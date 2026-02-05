@@ -7,6 +7,8 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
 
+        <IsPackable>true</IsPackable>
+
         <!-- Version set by CI/CD, this is fallback for local builds -->
         <Version>0.1.0-alpha.1</Version>
         <Authors>Jono</Authors>
