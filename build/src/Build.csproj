@@ -26,28 +26,4 @@
         <InternalsVisibleTo Include="Build.Tests" />
     </ItemGroup>
 
-    <ItemGroup>
-      <Compile Update="_Build.Tests\GitHelperTests.cs">
-        <Link>Build.Tests\GitHelperTests.cs</Link>
-      </Compile>
-      <Compile Update="_Build.Tests\ProjectHelperTests.cs">
-        <Link>Build.Tests\ProjectHelperTests.cs</Link>
-      </Compile>
-      <Compile Update="_Build.Tests\VersionHelperTests.cs">
-        <Link>Build.Tests\VersionHelperTests.cs</Link>
-      </Compile>
-      <Compile Update="_Build.Tests\TopologicalSorterTests.cs">
-        <Link>Build.Tests\TopologicalSorterTests.cs</Link>
-      </Compile>
-      <Compile Update="_Build.Tests\GitHelperIntegrationTests.cs">
-        <Link>Build.Tests\GitHelperIntegrationTests.cs</Link>
-      </Compile>
-    </ItemGroup>
-
-    <ItemGroup>
-      <None Update="_Build.Tests\xunit.runner.json">
-        <Link>Build.Tests\xunit.runner.json</Link>
-      </None>
-    </ItemGroup>
-
 </Project>
