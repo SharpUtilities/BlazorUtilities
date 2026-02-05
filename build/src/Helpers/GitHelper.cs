@@ -11,7 +11,8 @@ internal static class GitHelper
     {
         try
         {
-            var result = Git($"tag --list \"{packageId}/v*\" --sort=-version:refname", logOutput: false);
+            // Avoid manual quotes; tooling will escape as needed.
+            var result = Git($"tag --list {packageId}/v* --sort=-version:refname", logOutput: false);
 
             if (result.Count == 0)
             {
@@ -37,7 +38,7 @@ internal static class GitHelper
     {
         try
         {
-            var result = Git($"diff --name-only {tagName} HEAD -- \"{projectDir}\"", logOutput: false);
+            var result = Git($"diff --name-only {tagName} HEAD -- {projectDir}", logOutput: false);
             return result
                 .Select(x => x.Text)
                 .Where(x => !string.IsNullOrWhiteSpace(x))
@@ -53,7 +54,6 @@ internal static class GitHelper
     {
         try
         {
-            // NOTE: Don't add extra quotes here; it can produce ""path"" and break git argument parsing.
             var result = Git($"rev-list --count HEAD -- {path}", logOutput: false);
             return int.Parse(result.First().Text.Trim());
         }
@@ -78,6 +78,7 @@ internal static class GitHelper
 
     public static void CreateTag(string tagName, string message)
     {
-        Git($"tag -a \"{tagName}\" -m \"{message}\"");
+        // IMPORTANT: do not wrap args in quotes; otherwise you can end up with ""message"" on Linux.
+        Git($"tag -a {tagName} -m {message}");
     }
 }

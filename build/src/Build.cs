@@ -54,6 +54,9 @@ internal sealed class Build : NukeBuild
     [Parameter("If true, builds/packages but does NOT push to any feed (dry run)")]
     readonly bool SkipPush;
 
+    [Parameter("If true, will NOT create git tags (useful for dry runs)")]
+    readonly bool SkipTags;
+
     AbsolutePath SourceDirectory => RootDirectory / "src";
     AbsolutePath TestsDirectory => RootDirectory / "tests";
     AbsolutePath OutputDirectory => RootDirectory / "output";
@@ -136,13 +139,26 @@ internal sealed class Build : NukeBuild
                     "GitHub token is required unless SkipPush=true. Pass --github-token <TOKEN> or set SkipPush.");
             }
 
+            if (SkipTags)
+            {
+                Log.Information("🏷️  SkipTags=true — will NOT create git tags (but will show what they would be).");
+            }
+
             PackagesDirectory.CreateOrCleanDirectory();
 
             DiscoverPackableProjects();
             DetectChanges();
             PropagateDependencies();
             PublishPackagesAsync(NugetSource, GitHubToken, skipPush: SkipPush);
-            CreateTags();
+
+            if (SkipTags)
+            {
+                PreviewTags();
+            }
+            else
+            {
+                CreateTags();
+            }
 
             if (PublishedList.Count > 0)
             {
@@ -361,6 +377,11 @@ internal sealed class Build : NukeBuild
             if (skipPush)
             {
                 Log.Information("🧪 DRY RUN: Produced package {Package} (not pushing).", packageFile.Name);
+
+                // In dry-run, still record the version so tag preview works.
+                PublishedVersions[project.Name] = version;
+                PublishedList.Add($"{packageId}:{version}");
+
                 continue;
             }
 
@@ -385,6 +406,29 @@ internal sealed class Build : NukeBuild
 
         Log.Information("");
         Log.Information("========================================");
+    }
+
+    void PreviewTags()
+    {
+        if (PublishedVersions.Count == 0)
+        {
+            Log.Information("🏷️  No tags would be created (no packages were produced).");
+            return;
+        }
+
+        Log.Information("========================================");
+        Log.Information("🏷️  TAG PREVIEW (dry run)");
+        Log.Information("========================================");
+
+        foreach (var (projectName, version) in PublishedVersions)
+        {
+            var project = PackableProjects.First(p => p.Name == projectName);
+            var packageId = ProjectHelper.GetPackageId(project);
+            var tag = $"{packageId}/v{version}";
+            Log.Information("🏷️  Would create tag: {Tag}", tag);
+        }
+
+        Log.Information("");
     }
 
     void CreateTags()
