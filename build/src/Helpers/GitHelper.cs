@@ -53,7 +53,8 @@ internal static class GitHelper
     {
         try
         {
-            var result = Git($"rev-list --count HEAD -- \"{path}\"", logOutput: false);
+            // NOTE: Don't add extra quotes here; it can produce ""path"" and break git argument parsing.
+            var result = Git($"rev-list --count HEAD -- {path}", logOutput: false);
             return int.Parse(result.First().Text.Trim());
         }
         catch

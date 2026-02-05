@@ -6,6 +6,9 @@
 # Common IntelliJ Platform excludes
 *.idea
 
+# nuke
+.nuke/build.schema.json
+
 # User-specific files
 *.rsuser
 *.suo

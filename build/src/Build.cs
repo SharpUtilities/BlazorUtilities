@@ -18,6 +18,7 @@ namespace Build;
 [GitHubActions(
     "ci",
     GitHubActionsImage.UbuntuLatest,
+    AutoGenerate = false,
     FetchDepth = 0,
     OnPushBranches = ["main"],
     OnPushExcludePaths = ["*.md", ".gitignore", "LICENSE"],
@@ -49,6 +50,9 @@ internal sealed class Build : NukeBuild
     [Parameter("GitHub token")]
     [Secret]
     readonly string GitHubToken = null!;
+
+    [Parameter("If true, builds/packages but does NOT push to any feed (dry run)")]
+    readonly bool SkipPush;
 
     AbsolutePath SourceDirectory => RootDirectory / "src";
     AbsolutePath TestsDirectory => RootDirectory / "tests";
@@ -120,15 +124,24 @@ internal sealed class Build : NukeBuild
     Target PublishToGitHub => td => td
         .Description("Publish changed packages to GitHub Packages")
         .DependsOn(Test)
-        .Requires(() => GitHubToken)
         .Executes(async () =>
         {
+            if (SkipPush)
+            {
+                Log.Information("🧪 DRY RUN: SkipPush=true — will pack, but NOT push packages.");
+            }
+            else
+            {
+                Assert.True(!string.IsNullOrWhiteSpace(GitHubToken),
+                    "GitHub token is required unless SkipPush=true. Pass --github-token <TOKEN> or set SkipPush.");
+            }
+
             PackagesDirectory.CreateOrCleanDirectory();
 
             DiscoverPackableProjects();
             DetectChanges();
             PropagateDependencies();
-            PublishPackagesAsync(NugetSource, GitHubToken);
+            PublishPackagesAsync(NugetSource, GitHubToken, skipPush: SkipPush);
             CreateTags();
 
             if (PublishedList.Count > 0)
@@ -275,7 +288,7 @@ internal sealed class Build : NukeBuild
     // Publishing
     // ============================================
 
-    void PublishPackagesAsync(string source, string apiKey)
+    void PublishPackagesAsync(string source, string apiKey, bool skipPush)
     {
         Log.Information("========================================");
         Log.Information("📦 PUBLISHING PACKAGES");
@@ -332,7 +345,9 @@ internal sealed class Build : NukeBuild
                 .SetOutputDirectory(PackagesDirectory)
                 .SetVersion(version)
                 .EnableNoBuild()
-                .SetProperties(properties));
+                .SetProperties(properties)
+                .SetProperty("PackageVersion", version)
+                .SetProperty("Version", version));
 
             var packageFile = PackagesDirectory.GlobFiles($"{packageId}.{version}.nupkg").FirstOrDefault()
                               ?? PackagesDirectory.GlobFiles($"*.{version}.nupkg").FirstOrDefault();
@@ -340,6 +355,12 @@ internal sealed class Build : NukeBuild
             if (packageFile == null)
             {
                 Log.Warning("⚠️  Package file not found for {PackageId}", packageId);
+                continue;
+            }
+
+            if (skipPush)
+            {
+                Log.Information("🧪 DRY RUN: Produced package {Package} (not pushing).", packageFile.Name);
                 continue;
             }
 
