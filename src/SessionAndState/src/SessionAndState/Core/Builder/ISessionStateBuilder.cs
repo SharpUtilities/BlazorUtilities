@@ -4,46 +4,34 @@ using SessionAndState.Core.Options;
 
 namespace SessionAndState.Core.Builder;
 
-/// <summary>
-/// Builder for configuring SessionAndState services.
-/// </summary>
 public interface ISessionStateBuilder
 {
-    /// <summary>
-    /// The service collection being configured.
-    /// </summary>
     IServiceCollection Services { get; }
 
-    /// <summary>
-    /// Adds the in-memory backend. Suitable for single-server deployments.
-    /// </summary>
     ISessionStateBuilder WithInMemoryBackend();
 
-    /// <summary>
-    /// Adds a custom backend implementation.
-    /// </summary>
-    /// <typeparam name="TBackend">The backend implementation type.</typeparam>
     ISessionStateBuilder WithBackend<TBackend>()
         where TBackend : class, ISessionAndStateBackend;
 
-    /// <summary>
-    /// Adds a custom backend implementation with a factory.
-    /// </summary>
-    /// <typeparam name="TBackend">The backend implementation type.</typeparam>
-    /// <param name="factory">Factory to create the backend instance.</param>
     ISessionStateBuilder WithBackend<TBackend>(Func<IServiceProvider, TBackend> factory)
         where TBackend : class, ISessionAndStateBackend;
 
-    /// <summary>
-    /// Enables the keep-alive endpoint and client-side service.
-    /// </summary>
-    /// <param name="configure">Optional keep-alive configuration.</param>
-    /// <returns>The builder for chaining.</returns>
-    ISessionStateBuilder WithKeepAlive(Action<SessionAndStateKeepAliveOptions>? configure = null);
+    ISessionStateBuilder WithAnonymousCookieSession(Action<AnonymousCookieSessionOptions>? configure = null);
 
     /// <summary>
-    /// Configures the core options.
+    /// Enables storing the session key in the auth cookie as a claim (auth transport) and wires up
+    /// CookieAuthenticationOptions so the claim is injected on sign-in and session is established on validation.
     /// </summary>
-    /// <param name="configure">Options configuration.</param>
-    ISessionStateBuilder ConfigureOptions(Action<SessionAndStateOptions> configure);
+    /// <param name="configure">Optional options configuration (claim type).</param>
+    ISessionStateBuilder WithAuthCookieClaimSessionKey(Action<AuthCookieClaimSessionKeyOptions>? configure = null);
+
+    /// <summary>
+    /// Same as <see cref="WithAuthCookieClaimSessionKey(Action{AuthCookieClaimSessionKeyOptions}?)"/> but allows specifying
+    /// the cookie authentication scheme to integrate with.
+    /// </summary>
+    ISessionStateBuilder WithAuthCookieClaimSessionKey(
+        string authenticationScheme,
+        Action<AuthCookieClaimSessionKeyOptions>? configure = null);
+
+    ISessionStateBuilder WithKeepAlive(Action<SessionAndStateKeepAliveOptions>? configure = null);
 }

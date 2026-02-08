@@ -22,6 +22,6 @@ internal sealed class SessionAndStateKeyAccessor : ISessionAndStateKeyAccessor
     public bool HasSessionKey =>
         _context.SessionKey is not null || _asyncLocal.HasValue;
 
-    public bool IsAuthenticated =>
+    public bool IsUsingAuthenticatedSessionKey =>
         _context.IsAuthenticated || _asyncLocal.IsAuthenticated;
 }

@@ -35,5 +35,5 @@ internal interface ISessionAndStateKeyAccessor
     /// <summary>
     /// Whether the current session belongs to an authenticated user.
     /// </summary>
-    bool IsAuthenticated { get; }
+    bool IsUsingAuthenticatedSessionKey { get; }
 }

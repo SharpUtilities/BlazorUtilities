@@ -6,7 +6,7 @@ namespace SessionAndState.Core.KeepAlive;
 public sealed class SessionAndStateKeepAliveOptions
 {
     /// <summary>
-    /// The keep-alive endpoint path. Default: "/api/blazor-session-state/keep-alive"
+    /// The keep-alive endpoint path. Default: "/session-and-state/keep-alive"
     /// </summary>
     public string Endpoint { get; set; } = "/session-and-state/keep-alive";
 
@@ -23,7 +23,7 @@ public sealed class SessionAndStateKeepAliveOptions
     public bool RequireAuthentication { get; set; }
 
     /// <summary>
-    /// Maximum number of requests allowed per check interval per IP address.
+    /// Maximum number of requests allowed per check interval per User.
     /// Default: 10
     /// </summary>
     public int RateLimitPermitLimit { get; set; } = 10;

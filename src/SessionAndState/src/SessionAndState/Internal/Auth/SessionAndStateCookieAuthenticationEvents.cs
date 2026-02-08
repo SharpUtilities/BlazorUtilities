@@ -68,14 +68,21 @@ internal sealed class SessionAndStateCookieAuthenticationEvents : CookieAuthenti
     private async Task InjectSessionKeyClaimAsync(CookieSigningInContext context)
     {
         var services = context.HttpContext.RequestServices;
-        var options = services.GetRequiredService<IOptions<SessionAndStateOptions>>().Value;
+
+        var marker = services.GetRequiredService<IOptions<SessionAndStateSessionConfigurationMarker>>().Value;
+        if (!marker.AuthCookieClaimEnabled)
+        {
+            return;
+        }
+
+        var authOptions = services.GetRequiredService<IOptions<AuthCookieClaimSessionKeyOptions>>().Value;
 
         if (context.Principal?.Identity is not ClaimsIdentity identity)
         {
             return;
         }
 
-        if (identity.HasClaim(c => c.Type == options.ClaimType))
+        if (identity.HasClaim(c => c.Type == authOptions.ClaimType))
         {
             return;
         }
@@ -87,7 +94,7 @@ internal sealed class SessionAndStateCookieAuthenticationEvents : CookieAuthenti
             context.Principal,
             context.HttpContext.RequestAborted);
 
-        identity.AddClaim(new Claim(options.ClaimType, newKey));
+        identity.AddClaim(new Claim(authOptions.ClaimType, newKey));
     }
 
     public override async Task ValidatePrincipal(CookieValidatePrincipalContext context)
@@ -157,10 +164,17 @@ internal sealed class SessionAndStateCookieAuthenticationEvents : CookieAuthenti
     private async Task ClearSessionAsync(CookieSigningOutContext context)
     {
         var services = context.HttpContext.RequestServices;
-        var options = services.GetRequiredService<IOptions<SessionAndStateOptions>>().Value;
+
+        var marker = services.GetRequiredService<IOptions<SessionAndStateSessionConfigurationMarker>>().Value;
+        if (!marker.AuthCookieClaimEnabled)
+        {
+            return;
+        }
+
+        var authOptions = services.GetRequiredService<IOptions<AuthCookieClaimSessionKeyOptions>>().Value;
 
         // Try to get session key from the current user's claims
-        var sessionKey = context.HttpContext.User.FindFirst(options.ClaimType)?.Value;
+        var sessionKey = context.HttpContext.User.FindFirst(authOptions.ClaimType)?.Value;
 
         // Fallback: check if session was already established in this request
         if (string.IsNullOrEmpty(sessionKey))

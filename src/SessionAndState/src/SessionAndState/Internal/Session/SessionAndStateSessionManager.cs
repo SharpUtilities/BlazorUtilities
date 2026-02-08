@@ -18,7 +18,8 @@ internal sealed partial class SessionAndStateSessionManager : ISessionAndStateSe
     private readonly ISessionAndStateCookieManager _cookieManager;
     private readonly ISessionAndStateKeyGenerator _keyGenerator;
     private readonly ISessionAndStateBackend _backend;
-    private readonly SessionAndStateOptions _options;
+    private readonly AuthCookieClaimSessionKeyOptions _authOptions;
+    private readonly SessionAndStateSessionConfigurationMarker _marker;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<SessionAndStateSessionManager> _logger;
 
@@ -30,15 +31,19 @@ internal sealed partial class SessionAndStateSessionManager : ISessionAndStateSe
         ISessionAndStateCookieManager cookieManager,
         ISessionAndStateKeyGenerator keyGenerator,
         ISessionAndStateBackend backend,
-        IOptions<SessionAndStateOptions> options,
+        IOptions<AuthCookieClaimSessionKeyOptions> authOptions,
+        IOptions<SessionAndStateSessionConfigurationMarker> marker,
         IHttpContextAccessor httpContextAccessor,
         ILogger<SessionAndStateSessionManager> logger)
     {
+        _marker = marker.Value;
+        _marker.EnsureValid();
+
         _context = context;
         _cookieManager = cookieManager;
         _keyGenerator = keyGenerator;
         _backend = backend;
-        _options = options.Value;
+        _authOptions = authOptions.Value;
         _httpContextAccessor = httpContextAccessor;
         _logger = logger;
     }
@@ -70,7 +75,6 @@ internal sealed partial class SessionAndStateSessionManager : ISessionAndStateSe
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        // Already established this request/scope?
         if (_context.IsEstablished)
         {
             return;
@@ -79,28 +83,25 @@ internal sealed partial class SessionAndStateSessionManager : ISessionAndStateSe
         await _establishLock.WaitAsync(cancellationToken);
         try
         {
-            // Double-check after acquiring lock
             if (_context.IsEstablished)
             {
                 return;
             }
 
-            // Check for authenticated user first
-            if (principal.Identity?.IsAuthenticated == true)
+            // Prefer auth-claim transport if enabled and user is authenticated
+            if (principal.Identity?.IsAuthenticated == true && _marker.AuthCookieClaimEnabled)
             {
                 EstablishAuthenticatedSession(httpContext, principal);
                 return;
             }
 
-            // Anonymous user - check if allowed
-            if (_options.RequireAuthentication)
+            // Otherwise, use anonymous cookie transport if enabled
+            if (!_marker.AnonymousCookieEnabled)
             {
-                LogSkippedAnonymousSession();
                 _context.SetNoSession();
                 return;
             }
 
-            // Try to read existing anonymous session from cookie
             var existingKey = _cookieManager.ReadSessionKey(httpContext);
             if (existingKey is not null)
             {
@@ -109,7 +110,6 @@ internal sealed partial class SessionAndStateSessionManager : ISessionAndStateSe
                 return;
             }
 
-            // Can we create a new session? Only if response hasn't started
             if (httpContext.Response.HasStarted)
             {
                 LogCannotCreateSessionResponseStarted();
@@ -117,7 +117,6 @@ internal sealed partial class SessionAndStateSessionManager : ISessionAndStateSe
                 return;
             }
 
-            // Create new anonymous session
             var newKey = await _keyGenerator.GenerateNonAuthenticatedKeyAsync(httpContext, cancellationToken);
             ValidateKey(newKey);
 
@@ -137,6 +136,20 @@ internal sealed partial class SessionAndStateSessionManager : ISessionAndStateSe
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
+        if (!_marker.AuthCookieClaimEnabled)
+        {
+            throw new InvalidOperationException(
+                "Auth-cookie claim session key transport is not enabled. " +
+                "Call builder.WithAuthCookieClaimSessionKey(...) to enable it.");
+        }
+
+        var existingClaimKey = principal.FindFirstValue(_authOptions.ClaimType);
+        if (!string.IsNullOrEmpty(existingClaimKey))
+        {
+            _context.Set(existingClaimKey, isAuthenticated: true);
+            return ValueTask.FromResult(existingClaimKey);
+        }
+
         var httpContext = _httpContextAccessor.HttpContext
             ?? throw new InvalidOperationException(
                 "Cannot transition session without HTTP context. " +
@@ -152,8 +165,15 @@ internal sealed partial class SessionAndStateSessionManager : ISessionAndStateSe
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
+        if (!_marker.AuthCookieClaimEnabled)
+        {
+            throw new InvalidOperationException(
+                "Auth-cookie claim session key transport is not enabled. " +
+                "Call builder.WithAuthCookieClaimSessionKey(...) to enable it.");
+        }
+
         // Check if already has a session key claim
-        var existingClaimKey = principal.FindFirstValue(_options.ClaimType);
+        var existingClaimKey = principal.FindFirstValue(_authOptions.ClaimType);
         if (!string.IsNullOrEmpty(existingClaimKey))
         {
             _context.Set(existingClaimKey, isAuthenticated: true);
@@ -218,7 +238,7 @@ internal sealed partial class SessionAndStateSessionManager : ISessionAndStateSe
 
     private void EstablishAuthenticatedSession(HttpContext httpContext, ClaimsPrincipal principal)
     {
-        var claimKey = principal.FindFirstValue(_options.ClaimType);
+        var claimKey = principal.FindFirstValue(_authOptions.ClaimType);
 
         if (!string.IsNullOrEmpty(claimKey))
         {

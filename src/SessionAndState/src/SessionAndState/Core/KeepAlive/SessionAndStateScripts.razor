@@ -38,6 +38,10 @@
             {
                 // Circuit already disconnected, ignore
             }
+            catch (TaskCanceledException)
+            {
+                // Task was canceled, likely due to circuit shutdown
+            }
         }
     }
 }

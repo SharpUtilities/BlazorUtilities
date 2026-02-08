@@ -252,8 +252,8 @@ internal sealed partial class DefaultSessionState<T> : SessionState<T>, IDisposa
         {
             throw new InvalidOperationException(
                 "No session key available. " +
-                "If RequireAuthentication is enabled, ensure the user is authenticated. " +
-                "Otherwise, ensure UseBlazorState() middleware has run.");
+                "Ensure UseSessionAndState() middleware has run and that you configured " +
+                "WithAnonymousCookieSession(...) and/or WithAuthCookieClaimSessionKey(...).");
         }
 
         return key;

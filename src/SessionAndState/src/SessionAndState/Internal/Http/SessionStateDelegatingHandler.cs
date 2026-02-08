@@ -35,7 +35,7 @@ internal sealed class SessionStateDelegatingHandler : DelegatingHandler
                 var keyAccessor = httpContext.RequestServices.GetService<ISessionAndStateKeyAccessor>();
                 if (keyAccessor?.HasSessionKey == true && keyAccessor.SessionKey is not null)
                 {
-                    _asyncLocal.Set(keyAccessor.SessionKey, keyAccessor.IsAuthenticated);
+                    _asyncLocal.Set(keyAccessor.SessionKey, keyAccessor.IsUsingAuthenticatedSessionKey);
                 }
             }
         }

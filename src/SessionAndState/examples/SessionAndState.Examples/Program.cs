@@ -29,18 +29,22 @@ builder.Services.AddHttpClient("Api", client =>
 
 // Configure BlazorState with all features
 // Note: WithKeyGenerator must be called FIRST before other configuration
-builder.Services.AddSessionAndState<DemoKeyGenerator>()
+builder.Services.AddSessionAndState<DemoKeyGenerator>(options =>
+    {
+        options.CleanupInterval = TimeSpan.FromMinutes(10);
+    })
     .WithInMemoryBackend()
     .WithKeepAlive(options =>
     {
         options.CheckInterval = TimeSpan.FromSeconds(30);
         options.RateLimitPermitLimit = 20;
     })
-    .ConfigureOptions(options =>
+    .WithAnonymousCookieSession(options =>
     {
-        options.CookieName = ".BlazorState.Examples";
-        options.CleanupInterval = TimeSpan.FromMinutes(1);
-    });
+        options.CookieName = ".SessionAndState.Examples";
+        options.MaxAge = TimeSpan.FromDays(7);
+    })
+    .WithAuthCookieClaimSessionKey("Cookies");
 
 // Register the custom cookie events in DI
 builder.Services.AddScoped<DemoCookieEvents>();
@@ -55,8 +59,7 @@ builder.Services.AddAuthentication("Cookies")
         // Use EventsType instead of Events instance
         // BlazorState will wrap these events and delegate calls to them
         options.EventsType = typeof(DemoCookieEvents);
-    })
-    .WithSessionAndState("Cookies"); // Integrate with BlazorState
+    });
 
 builder.Services.AddAuthorization();
 
