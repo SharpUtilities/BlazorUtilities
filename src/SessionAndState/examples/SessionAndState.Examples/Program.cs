@@ -8,6 +8,21 @@ using SessionAndState.Examples.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("DemoCorsPolicy", policy =>
+    {
+        policy.WithOrigins(
+                "https://localhost:7016",
+                "https://localhost:5001",
+                "http://localhost:5000")
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials();
+    });
+});
+
+
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -38,6 +53,7 @@ builder.Services.AddSessionAndState<DemoKeyGenerator>(options =>
     {
         options.CheckInterval = TimeSpan.FromSeconds(30);
         options.RateLimitPermitLimit = 20;
+        options.CorsPolicyName = "DemoCorsPolicy";
     })
     .WithAnonymousCookieSession(options =>
     {
@@ -74,6 +90,8 @@ if (!app.Environment.IsDevelopment())
 
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
+
+app.UseCors("DemoCorsPolicy");
 
 app.UseAntiforgery();
 

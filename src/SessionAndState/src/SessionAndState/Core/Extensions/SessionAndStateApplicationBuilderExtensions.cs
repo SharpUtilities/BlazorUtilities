@@ -25,7 +25,7 @@ public static class SessionAndStateApplicationBuilderExtensions
     /// during service registration.
     /// </exception>
     public static IApplicationBuilder UseSessionAndState<TApplication>(this TApplication app)
-    where TApplication : class, IHost, IApplicationBuilder, IEndpointRouteBuilder
+        where TApplication : class, IHost, IApplicationBuilder, IEndpointRouteBuilder
     {
         // Verify Data Protection is configured
         var dataProtectionProvider = app.ApplicationServices.GetService<IDataProtectionProvider>();
@@ -47,13 +47,24 @@ public static class SessionAndStateApplicationBuilderExtensions
         var featureFlags = app.ApplicationServices.GetRequiredService<IOptions<SessionAndStateFeatureFlags>>().Value;
         if (featureFlags.KeepAliveEnabled)
         {
-            app.UseRateLimiter();
+            var keepAliveOptions = app.ApplicationServices
+                .GetRequiredService<IOptions<SessionAndStateKeepAliveOptions>>().Value;
+
+            // ToDo: Validate that UseRateLimiter was called
+            var corsConfigured =
+                !string.IsNullOrWhiteSpace(keepAliveOptions.CorsPolicyName) ||
+                keepAliveOptions.ConfigureCors is not null;
+
+            if (corsConfigured)
+            {
+                // ToDo: Validate that UseCors was called
+            }
         }
 
         // Add middleware to ensure session key is established before response starts (for anonymous users)
         app.UseMiddleware<SessionAndStateMiddleware>();
 
-        // If this is a WebApplication (minimal API), we can map endpoints directly
+        // Map endpoints
         MapKeepAliveEndpoint(app);
 
         return app;
@@ -78,6 +89,15 @@ public static class SessionAndStateApplicationBuilderExtensions
         });
 
         endpointBuilder.RequireRateLimiting(SessionStateBuilder.RateLimiterPolicyName);
+
+        if (!string.IsNullOrWhiteSpace(options.CorsPolicyName))
+        {
+            endpointBuilder.RequireCors(options.CorsPolicyName);
+        }
+        else if (options.ConfigureCors is not null)
+        {
+            endpointBuilder.RequireCors(SessionStateBuilder.KeepAliveCorsPolicyName);
+        }
 
         if (options.RequireAuthentication)
         {

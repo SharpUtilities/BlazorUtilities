@@ -17,7 +17,75 @@
 <body>
 <Routes @rendermode="InteractiveServer"/>
 <ReconnectModal/>
-<script src="@Assets["_framework/blazor.web.js"]"></script>
+<script>
+    // Transport type constants (matching SignalR HttpTransportType enum)
+    const HttpTransportType = {
+        None: 0,
+        WebSockets: 1,
+        ServerSentEvents: 2,
+        LongPolling: 4
+    };
+
+    // Read transport preference from localStorage
+    function getTransportPreference() {
+        return localStorage.getItem('blazor-transport') || 'WebSockets';
+    }
+
+    // Map preference string to SignalR transport type
+    function getSignalRTransport(preference) {
+        switch (preference) {
+            case 'WebSockets':
+                return HttpTransportType.WebSockets;
+            case 'ServerSentEvents':
+                return HttpTransportType.ServerSentEvents;
+            case 'LongPolling':
+                return HttpTransportType.LongPolling;
+            default:
+                return HttpTransportType.WebSockets;
+        }
+    }
+
+    // Store for later use
+    window.blazorTransportPreference = getTransportPreference();
+    window.blazorTransportType = getSignalRTransport(window.blazorTransportPreference);
+
+    console.log('%c[Blazor Transport]', 'color: #6f42c1; font-weight: bold',
+        `Configured transport: ${window.blazorTransportPreference} (type: ${window.blazorTransportType})`);
+</script>
+
+@* Load Blazor with manual start and transport configuration *@
+<script src="@Assets["_framework/blazor.web.js"]" autostart="false"></script>
+<script>
+    // Start Blazor with custom SignalR configuration
+    Blazor.start({
+        circuit: {
+            configureSignalR: function (builder) {
+                // Configure the hub connection with specific transport
+                builder.withUrl("/_blazor", {
+                    transport: window.blazorTransportType,
+                    // Optionally skip negotiation for WebSockets (faster connection)
+                    // skipNegotiation: window.blazorTransportType === 1,
+                });
+
+                console.log('%c[Blazor SignalR]', 'color: #28a745; font-weight: bold',
+                    `Hub configured with transport type: ${window.blazorTransportType}`);
+            }
+        },
+        reconnectionOptions: {
+            maxRetries: 10,
+            retryIntervalMilliseconds: 2000
+        }
+    }).then(() => {
+        console.log('%c[Blazor]', 'color: #007bff; font-weight: bold',
+            'Started successfully. Check Network tab (F12) to verify transport.');
+        console.log('%c[Blazor]', 'color: #6c757d',
+            'Look for _blazor connection. WebSocket shows as "websocket" type, ' +
+            'SSE shows as "eventsource", Long Polling shows as multiple "fetch" requests.');
+    }).catch((error) => {
+        console.error('%c[Blazor]', 'color: #dc3545; font-weight: bold',
+            'Failed to start:', error);
+    });
+</script>
 </body>
 
 </html>

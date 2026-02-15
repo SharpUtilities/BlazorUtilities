@@ -135,8 +135,7 @@ internal sealed partial class SessionStateEventDispatcher : ISessionAndStateEven
         }
     }
 
-    private static string FormatKey(string key) =>
-        key.Length > 8 ? key[..8] + "..." : key;
+    private static string FormatKey(string key) => SessionKeyLogHelper.Format(key);
 
     [LoggerMessage(LogLevel.Debug, "SessionAndState event {eventName} raised for {typeName} (key: {key})")]
     partial void LogEventRaised(string eventName, string typeName, string key);

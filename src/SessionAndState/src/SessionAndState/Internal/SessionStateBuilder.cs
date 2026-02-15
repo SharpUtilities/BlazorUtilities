@@ -29,7 +29,8 @@ namespace SessionAndState.Internal;
 /// </summary>
 internal sealed class SessionStateBuilder : ISessionStateBuilder
 {
-    internal const string RateLimiterPolicyName = "BlazorStateKeepAlive";
+    internal const string RateLimiterPolicyName = "SessionAndStateKeepAlive_RateLimiter";
+    internal const string KeepAliveCorsPolicyName = "SessionAndStateKeepAlive_CORS";
 
     private bool _backendRegistered;
     private bool _keepAliveEnabled;
@@ -142,12 +143,46 @@ internal sealed class SessionStateBuilder : ISessionStateBuilder
 
         EnsureCoreServicesRegistered();
 
+        // Apply the caller configuration both to the real options pipeline AND
+        // to a local instance so we can register CORS policy right now.
+        // ToDo: I would like a way of doing this without making an extra instance of the value...
+        var keepAliveOptionsInstance = new SessionAndStateKeepAliveOptions();
+        configure?.Invoke(keepAliveOptionsInstance);
+
+        if (configure is not null)
+        {
+            Services.Configure(configure);
+        }
+
+        // Validation: reject "both are set but CorsPolicyName is whitespace"
+        if (keepAliveOptionsInstance.ConfigureCors is not null &&
+            keepAliveOptionsInstance.CorsPolicyName is not null &&
+            string.IsNullOrWhiteSpace(keepAliveOptionsInstance.CorsPolicyName))
+        {
+            throw new ArgumentException(
+                $"{nameof(SessionAndStateKeepAliveOptions.CorsPolicyName)} cannot be whitespace when {nameof(SessionAndStateKeepAliveOptions.ConfigureCors)} is also set. " +
+                "Either provide a real existing policy name, or set CorsPolicyName to null and use ConfigureCors only.",
+                nameof(configure));
+        }
+
         if (configure is not null)
         {
             Services.Configure(configure);
         }
 
         Services.Configure<SessionAndStateFeatureFlags>(f => f.KeepAliveEnabled = true);
+
+        // If ConfigureCors is provided, register an internal named policy we can apply at endpoint mapping time.
+        if (keepAliveOptionsInstance.ConfigureCors is not null)
+        {
+            Services.AddCors(cors =>
+            {
+                cors.AddPolicy(KeepAliveCorsPolicyName, policy =>
+                {
+                    keepAliveOptionsInstance.ConfigureCors(policy);
+                });
+            });
+        }
 
         Services.AddRateLimiter(limiterOptions =>
         {
@@ -282,7 +317,10 @@ internal sealed class SessionStateBuilder : ISessionStateBuilder
         Services.Configure<SessionAndStateFeatureFlags>(f => f.KeepAliveEnabled = false);
 
         // Ensure these are always available via IOptions<T>
-        Services.AddOptions<SessionAndStateOptions>();
+        Services.AddOptions<SessionAndStateOptions>()
+            .Validate(
+                o => o.ProtectedSessionKeyMaxAge >= TimeSpan.Zero,
+                "SessionAndStateOptions.ProtectedSessionKeyMaxAge must be greater than or equal to 0.");
         Services.AddOptions<AnonymousCookieSessionOptions>();
         Services.AddOptions<AuthCookieClaimSessionKeyOptions>();
         Services.AddOptions<SessionAndStateSessionConfigurationMarker>();

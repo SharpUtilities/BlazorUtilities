@@ -1,16 +1,23 @@
-﻿@namespace SessionAndState.Core.KeepAlive
-@implements IAsyncDisposable
-@inject IJSRuntime JsRuntime
-@inject IOptions<SessionAndStateFeatureFlags> FeatureFlags
-@inject IOptions<SessionAndStateKeepAliveOptions> Options
+﻿using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Options;
+using Microsoft.JSInterop;
+using SessionAndState.Internal;
 
-@using SessionAndState.Internal
-@using Microsoft.Extensions.Options
-@using Microsoft.JSInterop
+namespace SessionAndState.Core.KeepAlive;
 
-@code {
+public class SessionAndStateScripts : ComponentBase, IAsyncDisposable
+{
     private IJSObjectReference? _jsModule;
     private bool _initialized;
+
+    [Inject]
+    private IJSRuntime JsRuntime { get; set; } = null!;
+
+    [Inject]
+    private IOptions<SessionAndStateFeatureFlags> FeatureFlags { get; set; } = null!;
+
+    [Inject]
+    private IOptions<SessionAndStateKeepAliveOptions> Options { get; set; } = null!;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

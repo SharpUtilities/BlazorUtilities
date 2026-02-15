@@ -9,6 +9,7 @@ internal sealed class SessionAndStateKeyProtector : ISessionAndStateKeyProtector
 {
     private readonly IDataProtector _protector;
     private readonly SessionAndStateTimeProvider _timeProvider;
+    private readonly SessionAndStateOptions _sessionAndStateOptions;
 
     public SessionAndStateKeyProtector(
         IDataProtectionProvider dataProtection,
@@ -17,6 +18,7 @@ internal sealed class SessionAndStateKeyProtector : ISessionAndStateKeyProtector
     {
         _protector = dataProtection.CreateProtector(options.Value.DataProtectionPurpose);
         _timeProvider = timeProvider;
+        _sessionAndStateOptions = options.Value;
     }
 
     public string Protect(string sessionKey)
@@ -49,9 +51,8 @@ internal sealed class SessionAndStateKeyProtector : ISessionAndStateKeyProtector
 
             if (long.TryParse(timestampSpan, out var timestamp))
             {
-                // ToDo: This should be a setting!
                 var issued = DateTimeOffset.FromUnixTimeSeconds(timestamp);
-                if (_timeProvider.GetUtcNow() - issued > TimeSpan.FromDays(30))
+                if (_timeProvider.GetUtcNow() - issued > _sessionAndStateOptions.ProtectedSessionKeyMaxAge)
                 {
                     return null;
                 }

@@ -273,8 +273,7 @@ internal sealed partial class SessionAndStateSessionManager : ISessionAndStateSe
         }
     }
 
-    private static string FormatKey(string key) =>
-        key.Length > 8 ? key[..8] + "..." : key;
+    private static string FormatKey(string key) => SessionKeyLogHelper.Format(key);
 
     public void Dispose()
     {

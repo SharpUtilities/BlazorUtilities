@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Cors.Infrastructure;
+
 namespace SessionAndState.Core.KeepAlive;
 
 /// <summary>
@@ -9,6 +11,18 @@ public sealed class SessionAndStateKeepAliveOptions
     /// The keep-alive endpoint path. Default: "/session-and-state/keep-alive"
     /// </summary>
     public string Endpoint { get; set; } = "/session-and-state/keep-alive";
+
+    /// <summary>
+    /// If set, uses an existing CORS policy registered by the application.
+    /// If also setting <see cref="ConfigureCors"/>, this takes precedence.
+    /// </summary>
+    public string? CorsPolicyName { get; set; }
+
+    /// <summary>
+    /// Optional inline CORS configuration for the keep-alive endpoint.
+    /// If set, SessionAndState will register an internal named policy and apply it to the endpoint.
+    /// </summary>
+    public Action<CorsPolicyBuilder>? ConfigureCors { get; set; }
 
     /// <summary>
     /// Interval between activity checks. Default: 1 minute.
