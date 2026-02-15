@@ -154,20 +154,10 @@ internal sealed class SessionStateBuilder : ISessionStateBuilder
             Services.Configure(configure);
         }
 
-        // Validation: reject "both are set but CorsPolicyName is whitespace"
-        if (keepAliveOptionsInstance.ConfigureCors is not null &&
-            keepAliveOptionsInstance.CorsPolicyName is not null &&
-            string.IsNullOrWhiteSpace(keepAliveOptionsInstance.CorsPolicyName))
+        if (!string.IsNullOrWhiteSpace(keepAliveOptionsInstance.CorsPolicyName) && keepAliveOptionsInstance.ConfigureCors is not null)
         {
             throw new ArgumentException(
-                $"{nameof(SessionAndStateKeepAliveOptions.CorsPolicyName)} cannot be whitespace when {nameof(SessionAndStateKeepAliveOptions.ConfigureCors)} is also set. " +
-                "Either provide a real existing policy name, or set CorsPolicyName to null and use ConfigureCors only.",
-                nameof(configure));
-        }
-
-        if (configure is not null)
-        {
-            Services.Configure(configure);
+                $"Cannot set both {nameof(SessionAndStateKeepAliveOptions.CorsPolicyName)} and {nameof(SessionAndStateKeepAliveOptions.ConfigureCors)}!");
         }
 
         Services.Configure<SessionAndStateFeatureFlags>(f => f.KeepAliveEnabled = true);
@@ -317,10 +307,7 @@ internal sealed class SessionStateBuilder : ISessionStateBuilder
         Services.Configure<SessionAndStateFeatureFlags>(f => f.KeepAliveEnabled = false);
 
         // Ensure these are always available via IOptions<T>
-        Services.AddOptions<SessionAndStateOptions>()
-            .Validate(
-                o => o.ProtectedSessionKeyMaxAge >= TimeSpan.Zero,
-                "SessionAndStateOptions.ProtectedSessionKeyMaxAge must be greater than or equal to 0.");
+        Services.AddOptions<SessionAndStateOptions>();
         Services.AddOptions<AnonymousCookieSessionOptions>();
         Services.AddOptions<AuthCookieClaimSessionKeyOptions>();
         Services.AddOptions<SessionAndStateSessionConfigurationMarker>();

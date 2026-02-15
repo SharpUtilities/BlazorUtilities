@@ -8,19 +8,15 @@ using SessionAndState.Examples.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("DemoCorsPolicy", policy =>
-    {
-        policy.WithOrigins(
-                "https://localhost:7016",
-                "https://localhost:5001",
-                "http://localhost:5000")
-            .AllowAnyMethod()
-            .AllowAnyHeader()
-            .AllowCredentials();
-    });
-});
+// builder.Services.AddCors(options =>
+// {
+//     options.AddPolicy("SessionAndStateKeepAlive_CORS", policy =>
+//     {
+//         policy.WithOrigins("http://localhost:5225", "https://somedomain.com")
+//             .WithMethods("GET")
+//             .AllowCredentials();
+//     });
+// });
 
 
 // Add services to the container.
@@ -53,7 +49,13 @@ builder.Services.AddSessionAndState<DemoKeyGenerator>(options =>
     {
         options.CheckInterval = TimeSpan.FromSeconds(30);
         options.RateLimitPermitLimit = 20;
-        options.CorsPolicyName = "DemoCorsPolicy";
+        // options.CorsPolicyName = "SessionAndStateKeepAlive_CORS";
+        options.ConfigureCors = policy =>
+        {
+            policy.WithOrigins("http://localhost:5225", "https://somedomain.com")
+                .WithMethods("GET")
+                .AllowCredentials();
+        };
     })
     .WithAnonymousCookieSession(options =>
     {
@@ -91,7 +93,7 @@ if (!app.Environment.IsDevelopment())
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
 
-app.UseCors("DemoCorsPolicy");
+app.UseCors();
 
 app.UseAntiforgery();
 

@@ -12,13 +12,6 @@ public sealed class SessionAndStateOptions
     public string DataProtectionPurpose { get; set; } = "SessionAndState.Key";
 
     /// <summary>
-    /// Maximum allowed age of a protected (encrypted) anonymous session cookie payload.
-    /// This is used when decrypting the cookie to reject old cookies.
-    /// Default: 30 days
-    /// </summary>
-    public TimeSpan ProtectedSessionKeyMaxAge { get; set; } = TimeSpan.FromDays(1);
-
-    /// <summary>
     /// Interval between cleanup runs for expired session state.
     /// Default: 5 minutes
     /// </summary>
