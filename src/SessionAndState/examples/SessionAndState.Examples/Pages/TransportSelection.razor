@@ -1,0 +1,318 @@
+﻿@* Components/Pages/TransportSelection.razor *@
+@page "/transport-selection"
+@using SessionAndState.Examples.SessionStates
+@using Microsoft.JSInterop
+@implements IDisposable
+
+<PageTitle>Transport Selection - SessionAndState</PageTitle>
+
+<h1>Select Communication Transport</h1>
+<p class="lead">Choose how your browser communicates with the server in real-time.</p>
+
+<div class="row justify-content-center mt-4">
+    <div class="col-lg-10">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Choose Your Transport Technology</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-4">
+                    @* WebSockets *@
+                    <div class="col-md-4">
+                        <div class="card h-100 @GetCardBorderClass(TransportPreference.TransportType.WebSockets)"
+                             style="cursor: pointer;"
+                             @onclick="() => SelectTransport(TransportPreference.TransportType.WebSockets)">
+                            <div class="card-body text-center">
+                                <div class="fs-1 mb-2">🔌</div>
+                                <h5 class="card-title">WebSockets</h5>
+                                <span class="badge bg-success mb-2">Recommended</span>
+                                <p class="card-text small text-muted">
+                                    Full-duplex communication over a single TCP connection.
+                                    Lowest latency and best performance.
+                                </p>
+                                <ul class="list-unstyled small text-start">
+                                    <li>✓ Bi-directional</li>
+                                    <li>✓ Low latency (~1-5ms)</li>
+                                    <li>✓ Low server load</li>
+                                    <li>⚠ May be blocked by some proxies</li>
+                                </ul>
+                                <button class="btn @GetButtonClass(TransportPreference.TransportType.WebSockets) mt-2">
+                                    @GetButtonText(TransportPreference.TransportType.WebSockets)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    @* Server-Sent Events *@
+                    <div class="col-md-4">
+                        <div class="card h-100 @GetCardBorderClass(TransportPreference.TransportType.ServerSentEvents)"
+                             style="cursor: pointer;"
+                             @onclick="() => SelectTransport(TransportPreference.TransportType.ServerSentEvents)">
+                            <div class="card-body text-center">
+                                <div class="fs-1 mb-2">📡</div>
+                                <h5 class="card-title">Server-Sent Events</h5>
+                                <span class="badge bg-info mb-2">Fallback Option</span>
+                                <p class="card-text small text-muted">
+                                    One-way server-to-client push over HTTP.
+                                    Good fallback when WebSockets are blocked.
+                                </p>
+                                <ul class="list-unstyled small text-start">
+                                    <li>✓ Server push</li>
+                                    <li>✓ HTTP-based (firewall friendly)</li>
+                                    <li>⚠ One-way only</li>
+                                    <li>⚠ Medium latency</li>
+                                </ul>
+                                <button class="btn @GetButtonClass(TransportPreference.TransportType.ServerSentEvents) mt-2">
+                                    @GetButtonText(TransportPreference.TransportType.ServerSentEvents)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    @* Long Polling *@
+                    <div class="col-md-4">
+                        <div class="card h-100 @GetCardBorderClass(TransportPreference.TransportType.LongPolling)"
+                             style="cursor: pointer;"
+                             @onclick="() => SelectTransport(TransportPreference.TransportType.LongPolling)">
+                            <div class="card-body text-center">
+                                <div class="fs-1 mb-2">🔄</div>
+                                <h5 class="card-title">Long Polling</h5>
+                                <span class="badge bg-secondary mb-2">Universal Fallback</span>
+                                <p class="card-text small text-muted">
+                                    Traditional HTTP request/response cycling.
+                                    Works everywhere but with highest overhead.
+                                </p>
+                                <ul class="list-unstyled small text-start">
+                                    <li>✓ Works everywhere</li>
+                                    <li>✓ No special requirements</li>
+                                    <li>⚠ Higher latency (~100-500ms)</li>
+                                    <li>⚠ Higher server load</li>
+                                </ul>
+                                <button class="btn @GetButtonClass(TransportPreference.TransportType.LongPolling) mt-2">
+                                    @GetButtonText(TransportPreference.TransportType.LongPolling)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                @if (_selectionMade)
+                {
+                    <div class="alert alert-success mt-4 d-flex align-items-center justify-content-between">
+                        <div>
+                            <strong>✓ Transport Selected:</strong> @_selectedType
+                            <br/>
+                            <small class="text-muted">
+                                Click "Apply & Test" to reload the page with your selected transport.
+                            </small>
+                        </div>
+                        <button class="btn btn-success btn-lg" @onclick="ApplyAndTest">
+                            Apply & Test →
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Transport Comparison</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Feature</th>
+                                <th class="text-center">WebSockets</th>
+                                <th class="text-center">SSE</th>
+                                <th class="text-center">Long Polling</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Latency</td>
+                                <td class="text-center text-success fw-bold">~1-5ms</td>
+                                <td class="text-center text-warning">~10-50ms</td>
+                                <td class="text-center text-danger">~100-500ms</td>
+                            </tr>
+                            <tr>
+                                <td>Server Load</td>
+                                <td class="text-center text-success">Low</td>
+                                <td class="text-center text-warning">Medium</td>
+                                <td class="text-center text-danger">High</td>
+                            </tr>
+                            <tr>
+                                <td>Connection Type</td>
+                                <td class="text-center">Persistent</td>
+                                <td class="text-center">Persistent</td>
+                                <td class="text-center">Repeated</td>
+                            </tr>
+                            <tr>
+                                <td>Direction</td>
+                                <td class="text-center text-success">Bi-directional</td>
+                                <td class="text-center text-warning">Server → Client</td>
+                                <td class="text-center text-warning">Simulated bi-dir</td>
+                            </tr>
+                            <tr>
+                                <td>Firewall Friendly</td>
+                                <td class="text-center text-warning">Sometimes</td>
+                                <td class="text-center text-success">Yes</td>
+                                <td class="text-center text-success">Yes</td>
+                            </tr>
+                            <tr>
+                                <td>Browser Support</td>
+                                <td class="text-center text-success">Modern</td>
+                                <td class="text-center text-success">Modern</td>
+                                <td class="text-center text-success">All</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Current Status</h5>
+            </div>
+            <div class="card-body">
+                @if (TransportPref.HasValue && TransportPref.Value!.HasSelected)
+                {
+                    <div class="alert alert-info">
+                        <strong>Saved Preference:</strong> @TransportPref.Value.SelectedTransport
+                        <br/>
+                        <small class="text-muted">
+                            Selected at: @TransportPref.Value.SelectedAt.ToString("g")
+                        </small>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-secondary">
+                        <strong>No transport selected yet.</strong>
+                        <br/>
+                        <small>Using default: WebSockets</small>
+                    </div>
+                }
+
+                <h6>How It Works:</h6>
+                <ol class="small">
+                    <li>Select your preferred transport above</li>
+                    <li>Click "Apply & Test" to save and reload</li>
+                    <li>The page reloads with JavaScript configured to use your transport</li>
+                    <li>Verify the actual transport in the test page</li>
+                </ol>
+
+                <div class="alert alert-warning small mb-0">
+                    <strong>Note:</strong> If your selected transport fails to connect,
+                    SignalR will automatically fall back to the next available transport.
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5>When to Use Each Transport</h5>
+            </div>
+            <div class="card-body small">
+                <p><strong>WebSockets:</strong> Default choice for most applications. Use when you need real-time updates with minimal latency.</p>
+                <p><strong>SSE:</strong> When WebSockets are blocked by corporate firewalls or proxies, but you still need server push.</p>
+                <p class="mb-0"><strong>Long Polling:</strong> Legacy environments or when all else fails. Works everywhere but with performance trade-offs.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Inject] private SessionState<TransportPreference> TransportPref { get; set; } = default!;
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
+    private bool _selectionMade;
+    private TransportPreference.TransportType _selectedType;
+
+    protected override async Task OnInitializedAsync()
+    {
+        TransportPref.Changed += OnTransportChanged;
+
+        if (!TransportPref.HasValue)
+        {
+            await TransportPref.SetAsync(new TransportPreference());
+        }
+        else if (TransportPref.Value!.HasSelected)
+        {
+            _selectionMade = true;
+            _selectedType = TransportPref.Value.SelectedTransport;
+        }
+    }
+
+    private void OnTransportChanged(object? sender, SessionStateChangedEventArgs<TransportPreference> e)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private bool IsSelected(TransportPreference.TransportType type)
+    {
+        return _selectionMade && _selectedType == type;
+    }
+
+    private string GetCardBorderClass(TransportPreference.TransportType type)
+    {
+        return IsSelected(type) ? "border-success border-3" : "";
+    }
+
+    private string GetButtonClass(TransportPreference.TransportType type)
+    {
+        return IsSelected(type) ? "btn-success" : "btn-outline-primary";
+    }
+
+    private string GetButtonText(TransportPreference.TransportType type)
+    {
+        return IsSelected(type) ? "✓ Selected" : "Select";
+    }
+
+    private async Task SelectTransport(TransportPreference.TransportType type)
+    {
+        _selectionMade = true;
+        _selectedType = type;
+
+        if (TransportPref.Value is not null)
+        {
+            TransportPref.Value.SelectedTransport = type;
+            TransportPref.Value.HasSelected = true;
+            TransportPref.Value.SelectedAt = DateTime.UtcNow;
+        }
+        else
+        {
+            await TransportPref.SetAsync(new TransportPreference
+            {
+                SelectedTransport = type,
+                HasSelected = true,
+                SelectedAt = DateTime.UtcNow
+            });
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task ApplyAndTest()
+    {
+        // Save to localStorage so the JavaScript can read it on page load
+        await JS.InvokeVoidAsync("localStorage.setItem", "blazor-transport", _selectedType.ToString());
+
+        // Navigate with force reload to apply new transport
+        Navigation.NavigateTo("/transport-test", forceLoad: true);
+    }
+
+    public void Dispose()
+    {
+        TransportPref.Changed -= OnTransportChanged;
+    }
+}

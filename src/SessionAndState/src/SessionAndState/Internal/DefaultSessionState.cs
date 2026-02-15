@@ -252,8 +252,8 @@ internal sealed partial class DefaultSessionState<T> : SessionState<T>, IDisposa
         {
             throw new InvalidOperationException(
                 "No session key available. " +
-                "If RequireAuthentication is enabled, ensure the user is authenticated. " +
-                "Otherwise, ensure UseBlazorState() middleware has run.");
+                "Ensure UseSessionAndState() middleware has run and that you configured " +
+                "WithAnonymousCookieSession(...) and/or WithAuthCookieClaimSessionKey(...).");
         }
 
         return key;
@@ -419,8 +419,7 @@ internal sealed partial class DefaultSessionState<T> : SessionState<T>, IDisposa
         _asyncLock.Dispose();
     }
 
-    private static string FormatKey(string key) =>
-        key.Length > 8 ? key[..8] + "..." : key;
+    private static string FormatKey(string key) => SessionKeyLogHelper.Format(key);
 
     [LoggerMessage(LogLevel.Debug, "SessionAndState<{TypeName}> set for key {Key}")]
     partial void LogStateSet(string typeName, string key);

@@ -13,13 +13,13 @@ namespace SessionAndState.Internal.Cookies;
 internal sealed partial class SessionAndStateCookieManager : ISessionAndStateCookieManager
 {
     private readonly ISessionAndStateKeyProtector _protector;
-    private readonly SessionAndStateOptions _options;
+    private readonly AnonymousCookieSessionOptions _options;
     private readonly SessionAndStateTimeProvider _timeProvider;
     private readonly ILogger<SessionAndStateCookieManager> _logger;
 
     public SessionAndStateCookieManager(
         ISessionAndStateKeyProtector protector,
-        IOptions<SessionAndStateOptions> options,
+        IOptions<AnonymousCookieSessionOptions> options,
         SessionAndStateTimeProvider timeProvider,
         ILogger<SessionAndStateCookieManager> logger)
     {
@@ -63,17 +63,25 @@ internal sealed partial class SessionAndStateCookieManager : ISessionAndStateCoo
         }
 
         var protectedValue = _protector.Protect(key);
-        context.Response.Cookies.Append(_options.CookieName, protectedValue, new CookieOptions
+
+        var cookieOptions = new CookieOptions
         {
-            HttpOnly = true,
-            Secure = true,
-            SameSite = SameSiteMode.Strict,
-            IsEssential = true,
-            Expires = _options.CookieExpiration.Expires
-                ? _timeProvider.GetUtcNow().Add(_options.CookieExpiration.Duration)
-                : null,
-            MaxAge = _options.CookieMaxAge,
-        });
+            Domain = _options.Domain,
+            Path = _options.Path,
+            HttpOnly = _options.HttpOnly,
+            Secure = _options.Secure,
+            SameSite = _options.SameSite,
+            IsEssential = _options.IsEssential,
+            MaxAge = _options.MaxAge,
+            Expires = _options.Expires
+        };
+
+        if (cookieOptions.Expires is null && cookieOptions.MaxAge is not null)
+        {
+            cookieOptions.Expires = _timeProvider.GetUtcNow().Add(cookieOptions.MaxAge.Value);
+        }
+
+        context.Response.Cookies.Append(_options.CookieName, protectedValue, cookieOptions);
 
         LogWroteCookie();
     }

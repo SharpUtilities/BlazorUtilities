@@ -1,0 +1,464 @@
+﻿@* Components/Pages/TransportTest.razor *@
+@page "/transport-test"
+@using SessionAndState.Examples.SessionStates
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
+
+<PageTitle>Transport Test - SessionAndState</PageTitle>
+
+<h1>Transport Verification</h1>
+<p class="lead">Verify your selected transport technology is working correctly.</p>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Connection Status</h5>
+                <span class="badge @GetStatusBadgeClass() fs-6">@_connectionStatus</span>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-5">Selected Transport</dt>
+                    <dd class="col-sm-7">
+                        @if (TransportPref.HasValue && TransportPref.Value!.HasSelected)
+                        {
+                            <span class="badge bg-primary fs-6">@TransportPref.Value.SelectedTransport</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">Not selected - <a href="/transport-selection">Choose one</a></span>
+                        }
+                    </dd>
+
+                    <dt class="col-sm-5">Detected Transport</dt>
+                    <dd class="col-sm-7">
+                        @if (!string.IsNullOrEmpty(_detectedTransport))
+                        {
+                            <span class="badge @GetDetectedTransportBadgeClass() fs-6">@_detectedTransport</span>
+                            @if (_transportMismatch)
+                            {
+                                <br/><small class="text-warning">⚠ Fallback occurred</small>
+                            }
+                        }
+                        else
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status"></span>
+                            <span class="text-muted ms-2">Detecting...</span>
+                        }
+                    </dd>
+
+                    <dt class="col-sm-5">Connection State</dt>
+                    <dd class="col-sm-7">
+                        <span class="badge @GetConnectionStateBadgeClass()">@_connectionState</span>
+                    </dd>
+
+                    <dt class="col-sm-5">Round-Trip Time</dt>
+                    <dd class="col-sm-7">
+                        @if (_lastRtt.HasValue)
+                        {
+                            <span class="badge bg-secondary">@_lastRtt.Value ms</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">Not measured</span>
+                        }
+                    </dd>
+
+                    <dt class="col-sm-5">Messages Sent</dt>
+                    <dd class="col-sm-7"><span class="badge bg-info">@_messagesSent</span></dd>
+
+                    <dt class="col-sm-5">Messages Received</dt>
+                    <dd class="col-sm-7"><span class="badge bg-success">@_messagesReceived</span></dd>
+                </dl>
+            </div>
+            <div class="card-footer">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-primary" @onclick="MeasureLatency" disabled="@_isMeasuring">
+                        @if (_isMeasuring)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        Measure Latency
+                    </button>
+                    <button class="btn btn-outline-secondary" @onclick="DetectTransport">
+                        Re-detect Transport
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">Real-Time Test</h5>
+            </div>
+            <div class="card-body text-center">
+                <p class="text-muted small">
+                    Click the button rapidly. Fast updates = good transport performance.
+                </p>
+                <div class="display-1 my-4" style="font-family: monospace;">
+                    @_counter
+                </div>
+                <div class="btn-group btn-group-lg">
+                    <button class="btn btn-danger" @onclick="Decrement">−</button>
+                    <button class="btn btn-outline-secondary" @onclick="Reset" style="width: 80px;">Reset</button>
+                    <button class="btn btn-success" @onclick="Increment">+</button>
+                </div>
+                <p class="text-muted small mt-3 mb-0">
+                    Updates: @_updateCount | Last update: @_lastUpdateTime.ToString("HH:mm:ss.fff")
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Event Log</h5>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="ClearLog">Clear</button>
+            </div>
+            <div class="card-body p-0">
+                <div style="max-height: 300px; overflow-y: auto;" class="p-3">
+                    @if (_logEntries.Count == 0)
+                    {
+                        <p class="text-muted text-center my-3">No events yet...</p>
+                    }
+                    @foreach (var entry in _logEntries.AsEnumerable().Reverse())
+                    {
+                        <div class="d-flex align-items-start mb-2 small">
+                            <span class="badge @GetLogBadgeClass(entry.Type) me-2" style="min-width: 70px;">
+                                @entry.Type
+                            </span>
+                            <span class="text-muted me-2" style="font-size: 0.75rem; min-width: 80px;">
+                                @entry.Time.ToString("HH:mm:ss.fff")
+                            </span>
+                            <span class="flex-grow-1">@entry.Message</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">⚠️ Verify in Browser DevTools</h5>
+            </div>
+            <div class="card-body">
+                <p class="small mb-2">
+                    <strong>The detected transport above is based on JavaScript inspection.
+                    For absolute verification, check your browser's DevTools:</strong>
+                </p>
+
+                <ol class="small mb-3">
+                    <li>Press <kbd>F12</kbd> to open DevTools</li>
+                    <li>Go to the <strong>Network</strong> tab</li>
+                    <li>Filter by <code>_blazor</code></li>
+                    <li>Look for the connection type:</li>
+                </ol>
+
+                <div class="row text-center small">
+                    <div class="col-4">
+                        <div class="border rounded p-2 h-100">
+                            <strong class="text-primary">WebSockets</strong>
+                            <hr class="my-1"/>
+                            <div>Type: <code>websocket</code></div>
+                            <div>Status: <code>101</code></div>
+                            <div class="text-muted">Single persistent connection</div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="border rounded p-2 h-100">
+                            <strong class="text-info">SSE</strong>
+                            <hr class="my-1"/>
+                            <div>Type: <code>eventsource</code></div>
+                            <div>Status: <code>200</code></div>
+                            <div class="text-muted">Continuous download</div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="border rounded p-2 h-100">
+                            <strong class="text-secondary">Long Polling</strong>
+                            <hr class="my-1"/>
+                            <div>Type: <code>fetch/xhr</code></div>
+                            <div>Status: <code>200</code></div>
+                            <div class="text-muted">Repeated requests</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0">Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="/transport-selection" class="btn btn-outline-primary">
+                        ← Change Transport Selection
+                    </a>
+                    <button class="btn btn-outline-danger" @onclick="ForceReconnect">
+                        Force Reconnect
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Inject] private SessionState<TransportPreference> TransportPref { get; set; } = default!;
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
+    private string _connectionStatus = "Initializing...";
+    private string _connectionState = "Connecting";
+    private string? _detectedTransport;
+    private bool _transportMismatch;
+    private int? _lastRtt;
+    private bool _isMeasuring;
+
+    private int _counter;
+    private int _updateCount;
+    private DateTime _lastUpdateTime = DateTime.Now;
+    private int _messagesSent;
+    private int _messagesReceived;
+
+    private readonly List<LogEntry> _logEntries = new();
+    private IJSObjectReference? _jsModule;
+    private DotNetObjectReference<TransportTest>? _dotNetRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+
+            try
+            {
+                // Import our transport detection module
+                _jsModule = await JS.InvokeAsync<IJSObjectReference>(
+                    "import", "./js/transport-detector.js");
+
+                await DetectTransport();
+            }
+            catch (Exception ex)
+            {
+                AddLog("Error", $"Failed to load JS module: {ex.Message}");
+                // Fallback detection
+                await FallbackDetection();
+            }
+
+            _connectionStatus = "Connected";
+            _connectionState = "Connected";
+            AddLog("Info", "Blazor circuit initialized");
+            StateHasChanged();
+        }
+    }
+
+    private async Task DetectTransport()
+    {
+        try
+        {
+            if (_jsModule is not null)
+            {
+                _detectedTransport = await _jsModule.InvokeAsync<string>("detectTransport");
+            }
+            else
+            {
+                await FallbackDetection();
+            }
+
+            // Check for mismatch
+            if (TransportPref.HasValue && TransportPref.Value!.HasSelected)
+            {
+                var selected = TransportPref.Value.SelectedTransport.ToString();
+                _transportMismatch = !string.Equals(_detectedTransport, selected, StringComparison.OrdinalIgnoreCase) &&
+                                     !_detectedTransport!.Contains(selected, StringComparison.OrdinalIgnoreCase);
+            }
+
+            AddLog("Transport", $"Detected: {_detectedTransport}");
+            _messagesReceived++;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            AddLog("Error", $"Detection failed: {ex.Message}");
+            await FallbackDetection();
+        }
+    }
+
+    private async Task FallbackDetection()
+    {
+        // Try to read from localStorage what was configured
+        try
+        {
+            var stored = await JS.InvokeAsync<string?>("localStorage.getItem", "blazor-transport");
+            _detectedTransport = !string.IsNullOrEmpty(stored)
+                ? $"{stored} (configured)"
+                : "WebSockets (default)";
+        }
+        catch
+        {
+            _detectedTransport = "Unknown";
+        }
+    }
+
+    private async Task MeasureLatency()
+    {
+        _isMeasuring = true;
+        StateHasChanged();
+
+        var measurements = new List<long>();
+
+        for (int i = 0; i < 5; i++)
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            _messagesSent++;
+
+            // Force a round-trip by triggering a state change and waiting
+            await Task.Yield();
+            await InvokeAsync(StateHasChanged);
+
+            sw.Stop();
+            measurements.Add(sw.ElapsedMilliseconds);
+            _messagesReceived++;
+
+            await Task.Delay(50); // Small delay between measurements
+        }
+
+        _lastRtt = (int)measurements.Average();
+        AddLog("Latency", $"Average RTT: {_lastRtt}ms (samples: {string.Join(", ", measurements)}ms)");
+
+        _isMeasuring = false;
+        StateHasChanged();
+    }
+
+    private void Increment()
+    {
+        _counter++;
+        _updateCount++;
+        _lastUpdateTime = DateTime.Now;
+        _messagesSent++;
+        _messagesReceived++;
+    }
+
+    private void Decrement()
+    {
+        _counter--;
+        _updateCount++;
+        _lastUpdateTime = DateTime.Now;
+        _messagesSent++;
+        _messagesReceived++;
+    }
+
+    private void Reset()
+    {
+        _counter = 0;
+        _updateCount++;
+        _lastUpdateTime = DateTime.Now;
+        AddLog("Counter", "Reset to 0");
+    }
+
+    private void ForceReconnect()
+    {
+        AddLog("Action", "Forcing page reload...");
+        Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+    }
+
+    private void AddLog(string type, string message)
+    {
+        _logEntries.Add(new LogEntry
+        {
+            Time = DateTime.Now,
+            Type = type,
+            Message = message
+        });
+
+        // Keep only last 50 entries
+        while (_logEntries.Count > 50)
+        {
+            _logEntries.RemoveAt(0);
+        }
+    }
+
+    private void ClearLog()
+    {
+        _logEntries.Clear();
+        AddLog("Info", "Log cleared");
+    }
+
+    private string GetStatusBadgeClass() => _connectionStatus switch
+    {
+        "Connected" => "bg-success",
+        "Disconnected" => "bg-danger",
+        _ => "bg-warning text-dark"
+    };
+
+    private string GetConnectionStateBadgeClass() => _connectionState switch
+    {
+        "Connected" => "bg-success",
+        "Reconnecting" => "bg-warning text-dark",
+        "Disconnected" => "bg-danger",
+        _ => "bg-secondary"
+    };
+
+    private string GetDetectedTransportBadgeClass() => _detectedTransport switch
+    {
+        var t when t?.Contains("WebSocket", StringComparison.OrdinalIgnoreCase) == true => "bg-success",
+        var t when t?.Contains("ServerSentEvents", StringComparison.OrdinalIgnoreCase) == true => "bg-info",
+        var t when t?.Contains("SSE", StringComparison.OrdinalIgnoreCase) == true => "bg-info",
+        var t when t?.Contains("LongPolling", StringComparison.OrdinalIgnoreCase) == true => "bg-secondary",
+        var t when t?.Contains("Polling", StringComparison.OrdinalIgnoreCase) == true => "bg-secondary",
+        _ => "bg-warning text-dark"
+    };
+
+    private string GetLogBadgeClass(string type) => type switch
+    {
+        "Transport" => "bg-primary",
+        "Latency" => "bg-info",
+        "Counter" => "bg-success",
+        "Action" => "bg-warning text-dark",
+        "Error" => "bg-danger",
+        _ => "bg-secondary"
+    };
+
+    [JSInvokable]
+    public void OnTransportDetected(string transport)
+    {
+        _detectedTransport = transport;
+        AddLog("Transport", $"JS callback: {transport}");
+        InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public void OnConnectionStateChanged(string state)
+    {
+        _connectionState = state;
+        AddLog("Connection", $"State changed: {state}");
+        InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_jsModule is not null)
+        {
+            try
+            {
+                await _jsModule.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // Circuit already disconnected
+            }
+        }
+
+        _dotNetRef?.Dispose();
+    }
+
+    private record LogEntry
+    {
+        public DateTime Time { get; init; }
+        public required string Type { get; init; }
+        public required string Message { get; init; }
+    }
+}

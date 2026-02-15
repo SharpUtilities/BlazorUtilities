@@ -1,4 +1,5 @@
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.AspNetCore.Http;
@@ -11,6 +12,7 @@ using SessionAndState.Core;
 using SessionAndState.Core.Builder;
 using SessionAndState.Core.KeepAlive;
 using SessionAndState.Core.Options;
+using SessionAndState.Internal.Auth;
 using SessionAndState.Internal.Backends;
 using SessionAndState.Internal.Circuits;
 using SessionAndState.Internal.Cookies;
@@ -27,7 +29,8 @@ namespace SessionAndState.Internal;
 /// </summary>
 internal sealed class SessionStateBuilder : ISessionStateBuilder
 {
-    internal const string RateLimiterPolicyName = "BlazorStateKeepAlive";
+    internal const string RateLimiterPolicyName = "SessionAndStateKeepAlive_RateLimiter";
+    internal const string KeepAliveCorsPolicyName = "SessionAndStateKeepAlive_CORS";
 
     private bool _backendRegistered;
     private bool _keepAliveEnabled;
@@ -69,6 +72,68 @@ internal sealed class SessionStateBuilder : ISessionStateBuilder
         return this;
     }
 
+    public ISessionStateBuilder WithAnonymousCookieSession(Action<AnonymousCookieSessionOptions>? configure = null)
+    {
+        EnsureCoreServicesRegistered();
+
+        Services.Configure<SessionAndStateSessionConfigurationMarker>(m => m.AnonymousCookieEnabled = true);
+
+        if (configure is not null)
+        {
+            Services.Configure(configure);
+        }
+
+        return this;
+    }
+
+    public ISessionStateBuilder WithAuthCookieClaimSessionKey(Action<AuthCookieClaimSessionKeyOptions>? configure = null)
+    {
+        return WithAuthCookieClaimSessionKey(CookieAuthenticationDefaults.AuthenticationScheme, configure);
+    }
+
+    public ISessionStateBuilder WithAuthCookieClaimSessionKey(
+        string authenticationScheme,
+        Action<AuthCookieClaimSessionKeyOptions>? configure = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(authenticationScheme);
+
+        EnsureCoreServicesRegistered();
+
+        Services.Configure<SessionAndStateSessionConfigurationMarker>(m => m.AuthCookieClaimEnabled = true);
+
+        if (configure is not null)
+        {
+            Services.Configure(configure);
+        }
+
+        // Use PostConfigure to run after all other configurations
+        Services.AddOptions<CookieAuthenticationOptions>(authenticationScheme)
+            .PostConfigure<IServiceProvider>((cookieOptions, services) =>
+            {
+                // Capture existing events configuration
+                var existingEvents = cookieOptions.Events;
+                var existingEventsType = cookieOptions.EventsType;
+
+                // If EventsType is specified, ensure it's registered in DI
+                if (existingEventsType is not null)
+                {
+                    // We can't modify DI here, but we'll resolve it at runtime
+                    // The ResolveInnerEvents method handles this
+                }
+
+                // Replace with our wrapper that resolves dependencies at runtime
+                cookieOptions.Events = new SessionAndStateCookieAuthenticationEvents(
+                    existingEvents,
+                    existingEventsType);
+
+                // Clear EventsType since we handle resolution ourselves
+                cookieOptions.EventsType = null;
+            });
+
+
+        return this;
+    }
+
     public ISessionStateBuilder WithKeepAlive(Action<SessionAndStateKeepAliveOptions>? configure = null)
     {
         if (_keepAliveEnabled)
@@ -78,13 +143,36 @@ internal sealed class SessionStateBuilder : ISessionStateBuilder
 
         EnsureCoreServicesRegistered();
 
+        // Apply the caller configuration both to the real options pipeline AND
+        // to a local instance so we can register CORS policy right now.
+        // ToDo: I would like a way of doing this without making an extra instance of the value...
+        var keepAliveOptionsInstance = new SessionAndStateKeepAliveOptions();
+        configure?.Invoke(keepAliveOptionsInstance);
+
         if (configure is not null)
         {
             Services.Configure(configure);
         }
 
+        if (!string.IsNullOrWhiteSpace(keepAliveOptionsInstance.CorsPolicyName) && keepAliveOptionsInstance.ConfigureCors is not null)
+        {
+            throw new ArgumentException(
+                $"Cannot set both {nameof(SessionAndStateKeepAliveOptions.CorsPolicyName)} and {nameof(SessionAndStateKeepAliveOptions.ConfigureCors)}!");
+        }
+
         Services.Configure<SessionAndStateFeatureFlags>(f => f.KeepAliveEnabled = true);
 
+        // If ConfigureCors is provided, register an internal named policy we can apply at endpoint mapping time.
+        if (keepAliveOptionsInstance.ConfigureCors is not null)
+        {
+            Services.AddCors(cors =>
+            {
+                cors.AddPolicy(KeepAliveCorsPolicyName, policy =>
+                {
+                    keepAliveOptionsInstance.ConfigureCors(policy);
+                });
+            });
+        }
 
         Services.AddRateLimiter(limiterOptions =>
         {
@@ -95,12 +183,15 @@ internal sealed class SessionStateBuilder : ISessionStateBuilder
                 var keepAliveOptions = context.RequestServices
                     .GetRequiredService<IOptions<SessionAndStateKeepAliveOptions>>().Value;
 
-                var sessionOptions = context.RequestServices
-                    .GetRequiredService<IOptions<SessionAndStateOptions>>().Value;
+                var anon = context.RequestServices
+                    .GetRequiredService<IOptions<AnonymousCookieSessionOptions>>().Value;
+
+                var auth = context.RequestServices
+                    .GetRequiredService<IOptions<AuthCookieClaimSessionKeyOptions>>().Value;
 
                 string? partitionKey = null;
 
-                if (context.Request.Cookies.TryGetValue(sessionOptions.CookieName, out var cookieValue)
+                if (context.Request.Cookies.TryGetValue(anon.CookieName, out var cookieValue)
                     && !string.IsNullOrEmpty(cookieValue))
                 {
                     partitionKey = cookieValue;
@@ -108,7 +199,7 @@ internal sealed class SessionStateBuilder : ISessionStateBuilder
 
                 if (partitionKey is null)
                 {
-                    var claimValue = context.User.FindFirst(sessionOptions.ClaimType)?.Value;
+                    var claimValue = context.User.FindFirst(auth.ClaimType)?.Value;
                     if (!string.IsNullOrEmpty(claimValue))
                     {
                         partitionKey = claimValue;
@@ -124,13 +215,11 @@ internal sealed class SessionStateBuilder : ISessionStateBuilder
                     }
                 }
 
-                // We could have X-Forwarded-For, but we might want some extra validation/Logic, or pass a func to the caller to configure
                 if (partitionKey is null)
                 {
                     var forwardedFor = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
                     if (!string.IsNullOrEmpty(forwardedFor))
                     {
-                        // Take the first IP (client IP) from the comma-separated list
                         partitionKey = forwardedFor.Split(',')[0].Trim();
                     }
                 }
@@ -216,6 +305,12 @@ internal sealed class SessionStateBuilder : ISessionStateBuilder
         Services.AddHttpContextAccessor();
 
         Services.Configure<SessionAndStateFeatureFlags>(f => f.KeepAliveEnabled = false);
+
+        // Ensure these are always available via IOptions<T>
+        Services.AddOptions<SessionAndStateOptions>();
+        Services.AddOptions<AnonymousCookieSessionOptions>();
+        Services.AddOptions<AuthCookieClaimSessionKeyOptions>();
+        Services.AddOptions<SessionAndStateSessionConfigurationMarker>();
 
         // Singletons
         Services.TryAddSingleton<SessionAndStatePipelineMarker>();
